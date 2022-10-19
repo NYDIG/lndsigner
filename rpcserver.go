@@ -11,16 +11,10 @@ import (
 
 	"github.com/hashicorp/vault/api"
 	"github.com/nydig/lndsigner/keyring"
+	"github.com/nydig/lndsigner/policy"
 	"github.com/nydig/lndsigner/proto"
 	"github.com/tv42/zbase32"
 	"google.golang.org/grpc"
-)
-
-// keyRingKeyStruct is a struct used to look up a keyring passed in a context.
-type keyRingKeyStruct struct{}
-
-var (
-	keyRingKey = keyRingKeyStruct{}
 )
 
 // rpcServer is a gRPC front end to the signer daemon.
@@ -35,6 +29,8 @@ type rpcServer struct {
 	cfg *Config
 
 	keyRing *keyring.KeyRing
+
+	policyEngine *policy.PolicyEngine
 }
 
 // A compile time check to ensure that rpcServer fully implements the
@@ -44,7 +40,9 @@ var _ proto.LightningServer = (*rpcServer)(nil)
 // newRPCServer creates and returns a new instance of the rpcServer. Before
 // dependencies are added, this will be an non-functioning RPC server only to
 // be used to register the LightningService with the gRPC server.
-func newRPCServer(cfg *Config, c *api.Logical) *rpcServer {
+func newRPCServer(cfg *Config, c *api.Logical,
+	p *policy.PolicyEngine) *rpcServer {
+
 	return &rpcServer{
 		cfg:    cfg,
 		client: c,
@@ -53,19 +51,23 @@ func newRPCServer(cfg *Config, c *api.Logical) *rpcServer {
 			cfg.NodePubKey,
 			cfg.ActiveNetParams.HDCoinType,
 		),
+		policyEngine: p,
 	}
 }
 
-// intercept allows the RPC server to intercept requests to ensure that they're
-// authorized by a macaroon signed by the macaroon root key.
+// intercept allows the RPC server to intercept requests to ensure that they
+// comply with all applicable policies.
 func (r *rpcServer) intercept(ctx context.Context, req interface{},
 	info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (
 	interface{}, error) {
 
-	return handler(
-		context.WithValue(ctx, keyRingKey, r.keyRing),
-		req,
-	)
+	resp, err := r.policyEngine.EnforcePolicy(ctx, req, handler)
+	if err != nil {
+		signerLog.Debugw("Request denied by policy", "err", err)
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // RegisterWithGrpcServer registers the rpcServer and any subservers with the

@@ -19,6 +19,7 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/vault/api"
+	"github.com/nydig/lndsigner/policy"
 	"github.com/nydig/lndsigner/vault"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -64,6 +65,26 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 
 	signerClient := vaultClient.Logical()
 
+	listAcctsResp, err := signerClient.ReadWithData(
+		"lndsigner/lnd-nodes/accounts",
+		map[string][]string{
+			"node": []string{cfg.NodePubKey},
+		},
+	)
+	if err != nil {
+		return mkErr("error listing accounts: %v", err)
+	}
+
+	acctList, ok := listAcctsResp.Data["acctList"].(string)
+	if !ok {
+		return mkErr("accounts not returned")
+	}
+
+	accounts, err := GetAccounts(acctList)
+	if err != nil {
+		return mkErr("couldn't parse account list: %v", err)
+	}
+
 	serverOpts, err := getTLSConfig(cfg)
 	if err != nil {
 		return mkErr("unable to load TLS credentials: %v", err)
@@ -78,7 +99,7 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 		for _, grpcEndpoint := range cfg.RPCListeners {
 			// Start a gRPC server listening for HTTP/2
 			// connections.
-			lis, err := ListenOnAddress(grpcEndpoint)
+			lis, err := listenOnAddress(grpcEndpoint)
 			if err != nil {
 				return mkErr("unable to listen on %s: %v",
 					grpcEndpoint, err)
@@ -96,7 +117,13 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 
 	// Initialize the rpcServer and add its interceptor to the server
 	// options.
-	rpcServer := newRPCServer(cfg, signerClient)
+	policyEngine, err := policy.NewPolicyEngine(accounts,
+		cfg.ActiveNetParams.HDCoinType, cfg.ChanBackup)
+	if err != nil {
+		return mkErr("unable to initialize policy engine: %v", err)
+	}
+
+	rpcServer := newRPCServer(cfg, signerClient, policyEngine)
 	serverOpts = append(
 		serverOpts,
 		grpc.ChainUnaryInterceptor(rpcServer.intercept),
@@ -224,8 +251,8 @@ func parseNetwork(addr net.Addr) string {
 	}
 }
 
-// ListenOnAddress creates a listener that listens on the given address.
-func ListenOnAddress(addr net.Addr) (net.Listener, error) {
+// listenOnAddress creates a listener that listens on the given address.
+func listenOnAddress(addr net.Addr) (net.Listener, error) {
 	return net.Listen(parseNetwork(addr), addr.String())
 }
 

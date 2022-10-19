@@ -7,6 +7,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1
+	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 	github.com/hashicorp/go-hclog v1.3.1
 	github.com/hashicorp/vault/api v1.8.0
@@ -27,7 +28,6 @@ require (
 	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/cenkalti/backoff/v3 v3.0.0 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.5.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
@@ -86,8 +86,6 @@ replace github.com/ulikunitz/xz => github.com/ulikunitz/xz v0.5.8
 // https://deps.dev/advisory/OSV/GO-2021-0053?from=%2Fgo%2Fgithub.com%252Fgogo%252Fprotobuf%2Fv1.3.1
 replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
 
-// If you change this please also update .github/pull_request_template.md and
-// docs/INSTALL.md.
-go 1.18
+go 1.19
 
 retract v0.0.2

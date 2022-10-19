@@ -21,28 +21,33 @@ import (
 )
 
 const (
-	defaultConfigFilename  = "signer.conf"
-	defaultTLSCertFilename = "tls.cert"
-	defaultTLSKeyFilename  = "tls.key"
-	defaultRPCPort         = 10009
-	defaultRPCHost         = "localhost"
+	defaultConfigFilename     = "signer.conf"
+	defaultChanBackupFilename = "channel.backup"
+	defaultTLSCertFilename    = "tls.cert"
+	defaultTLSKeyFilename     = "tls.key"
+	defaultRPCPort            = 10009
+	defaultRPCHost            = "localhost"
 )
 
 var (
-	// DefaultSignerDir is the default directory where lndsignerd tries to
+	// defaultSignerDir is the default directory where lndsignerd tries to
 	// find its configuration file and store its data. This is a directory
 	// in the user's application data, for example:
 	//   C:\Users\<username>\AppData\Local\Lndsigner on Windows
 	//   ~/.lndsigner on Linux
 	//   ~/Library/Application Support/Lndsigner on MacOS
-	DefaultSignerDir = btcutil.AppDataDir("lndsigner", false)
+	defaultSignerDir = btcutil.AppDataDir("lndsigner", false)
 
-	// DefaultConfigFile is the default full path of lndsignerd's
+	// defaultConfigFile is the default full path of lndsignerd's
 	// configuration file.
-	DefaultConfigFile = filepath.Join(DefaultSignerDir, defaultConfigFilename)
+	defaultConfigFile = filepath.Join(defaultSignerDir, defaultConfigFilename)
 
-	defaultTLSCertPath = filepath.Join(DefaultSignerDir, defaultTLSCertFilename)
-	defaultTLSKeyPath  = filepath.Join(DefaultSignerDir, defaultTLSKeyFilename)
+	defaultTLSCertPath = filepath.Join(defaultSignerDir, defaultTLSCertFilename)
+	defaultTLSKeyPath  = filepath.Join(defaultSignerDir, defaultTLSKeyFilename)
+
+	// defaultChanBackup is the default full path of the channel backup
+	// file for the node.
+	defaultChanBackupFile = filepath.Join(defaultSignerDir, defaultChanBackupFilename)
 )
 
 // Config defines the configuration options for lndsignerd.
@@ -55,6 +60,8 @@ type Config struct {
 
 	TLSCertPath string `long:"tlscertpath" description:"Path to write the TLS certificate for lndsignerd's RPC services"`
 	TLSKeyPath  string `long:"tlskeypath" description:"Path to write the TLS private key for lndsignerd's RPC services"`
+
+	ChanBackup string `long:"chanbackup" description:"Path to channel.backup file for the watch-only node"`
 
 	// We'll parse these 'raw' string arguments into real net.Addrs in the
 	// loadConfig function. We need to expose the 'raw' strings so the
@@ -75,8 +82,9 @@ type Config struct {
 // DefaultConfig returns all default values for the Config struct.
 func DefaultConfig() Config {
 	return Config{
-		SignerDir:   DefaultSignerDir,
-		ConfigFile:  DefaultConfigFile,
+		SignerDir:   defaultSignerDir,
+		ChanBackup:  defaultChanBackupFile,
+		ConfigFile:  defaultConfigFile,
 		TLSCertPath: defaultTLSCertPath,
 		TLSKeyPath:  defaultTLSKeyPath,
 		Network:     "regtest",
@@ -114,8 +122,8 @@ func LoadConfig() (*Config, error) {
 	// User specified --signerdir but no --configfile. Update the config
 	// file path to the lndsignerd config directory, but don't require it
 	// to exist.
-	case configFileDir != DefaultSignerDir &&
-		configFilePath == DefaultConfigFile:
+	case configFileDir != defaultSignerDir &&
+		configFilePath == defaultConfigFile:
 
 		configFilePath = filepath.Join(
 			configFileDir, defaultConfigFilename,
@@ -123,7 +131,7 @@ func LoadConfig() (*Config, error) {
 
 	// User did specify an explicit --configfile, so we check that it does
 	// exist under that path to avoid surprises.
-	case configFilePath != DefaultConfigFile:
+	case configFilePath != defaultConfigFile:
 		if !fileExists(configFilePath) {
 			return nil, fmt.Errorf("specified config file does "+
 				"not exist in %s", configFilePath)
@@ -211,7 +219,7 @@ func ValidateConfig(cfg Config, fileParser, flagParser *flags.Parser) (
 	// modify the path to all of the files and directories that will live
 	// within it.
 	signerDir := CleanAndExpandPath(cfg.SignerDir)
-	if signerDir != DefaultSignerDir {
+	if signerDir != defaultSignerDir {
 		cfg.TLSCertPath = filepath.Join(signerDir, defaultTLSCertFilename)
 		cfg.TLSKeyPath = filepath.Join(signerDir, defaultTLSKeyFilename)
 	}
@@ -280,6 +288,8 @@ func ValidateConfig(cfg Config, fileParser, flagParser *flags.Parser) (
 	if err != nil {
 		return nil, mkErr("error normalizing RPC listen addrs: %v", err)
 	}
+
+	cfg.ChanBackup = CleanAndExpandPath(cfg.ChanBackup)
 
 	// All good, return the sanitized result.
 	return &cfg, nil

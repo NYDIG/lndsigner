@@ -169,7 +169,7 @@ func (tctx *testContext) testSweepToP2TR(t *testing.T) {
 // testing both direct and chained payments.
 func (tctx *testContext) testEachPaysEachOther(t *testing.T) {
 	tctx.testEachPair(func(lnd1, lnd2 *lndHarness) {
-		resp := lnd1.Lncli("addinvoice", "5000")
+		resp := lnd1.Lncli("addinvoice", "10")
 		invoice := resp["payment_request"].(string)
 
 		resp = lnd2.Lncli("payinvoice", "--timeout=10s", "--json",

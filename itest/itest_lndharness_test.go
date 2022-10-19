@@ -89,7 +89,9 @@ func (l *lndHarness) Start() {
 	l.lndSignerCmd = exec.CommandContext(ctx, l.tctx.lndSignerPath,
 		"--rpclisten="+fullSignerAddr, "--nodepubkey="+l.idPubKey,
 		"--tlscertpath="+certPath, "--tlskeypath="+keyPath,
-		"--network=regtest",
+		"--network=regtest", "--chanbackup="+
+			path.Join(l.lndDir,
+				"data/chain/bitcoin/regtest/channel.backup"),
 	)
 
 	l.lndSignerCmd.Env = append(l.lndSignerCmd.Env,

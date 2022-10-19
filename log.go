@@ -7,6 +7,7 @@ package lndsigner
 
 import (
 	"github.com/nydig/lndsigner/keyring"
+	"github.com/nydig/lndsigner/policy"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -19,5 +20,7 @@ func init() {
 	config.EncoderConfig.EncodeCaller = nil
 	rawLog := zap.Must(config.Build())
 	signerLog = rawLog.Sugar()
+
 	keyring.UseLogger(signerLog.With(zap.Any("pkg", "keyring")))
+	policy.UseLogger(signerLog.With(zap.Any("pkg", "policy")))
 }
