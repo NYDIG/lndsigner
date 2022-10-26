@@ -1,0 +1,45 @@
+// Copyright (C) 2013-2017 The btcsuite developers
+// Copyright (C) 2015-2016 The Decred developers
+// Copyright (C) 2015-2022 Lightning Labs and The Lightning Network Developers
+// Copyright (C) 2022 Bottlepay and The Lightning Network Developers
+
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/bottlepay/lndsigner/proto";
+
+// WalletKit is a service that gives access to the core functionalities of the
+// daemon's wallet.
+service WalletKit {
+  /*
+  SignPsbt expects a partial transaction with all inputs and outputs fully
+  declared and tries to sign all unsigned inputs that have all required fields
+  (UTXO information, BIP32 derivation information, witness or sig scripts)
+  set.
+  If no error is returned, the PSBT is ready to be given to the next signer or
+  to be finalized if lnd was the last signer.
+
+  NOTE: This RPC only signs inputs (and only those it can sign), it does not
+  perform any other tasks (such as coin selection, UTXO locking or
+  input/output/fee value validation, PSBT finalization). Any input that is
+  incomplete will be skipped.
+  */
+  rpc SignPsbt(SignPsbtRequest) returns (SignPsbtResponse);
+}
+
+message SignPsbtRequest {
+  /*
+  The PSBT that should be signed. The PSBT must contain all required inputs,
+  outputs, UTXO data and custom fields required to identify the signing key.
+  */
+  bytes funded_psbt = 1;
+}
+
+message SignPsbtResponse {
+  // The signed transaction in PSBT format.
+  bytes signed_psbt = 1;
+
+  // The indices of signed inputs.
+  repeated uint32 signed_inputs = 2;
+}
