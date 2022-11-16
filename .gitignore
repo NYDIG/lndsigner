@@ -5,9 +5,6 @@
 *.so
 *.dylib
 
-vault-plugin-lndsigner
-lndsignerd
-
 # Test binary, built with `go test -c`
 *.test
 
