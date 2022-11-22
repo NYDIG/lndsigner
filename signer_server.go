@@ -14,27 +14,13 @@ import (
 	"github.com/bottlepay/lndsigner/vault"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"gopkg.in/macaroon-bakery.v2/bakery"
-)
-
-var (
-	// signerPermissions maps RPC calls to the permissions they require.
-	signerPermissions = map[string][]bakery.Op{
-		"/proto.Signer/SignMessage": {{
-			Entity: "signer",
-			Action: "generate",
-		}},
-		"/proto.Signer/DeriveSharedKey": {{
-			Entity: "signer",
-			Action: "generate",
-		}},
-	}
 )
 
 // Server is a sub-server of the main RPC server: the signer RPC. This sub RPC
 // server allows external callers to access the full signing capabilities of
-// lnd. This allows callers to create custom protocols, external to lnd, even
-// backed by multiple distinct lnd across independent failure domains.
+// lndsignerd. This allows callers to create custom protocols, external to the
+// signer itself, even backed by multiple distinct signers across independent
+// failure domains.
 type signerServer struct {
 	// Required by the grpc-gateway/v2 library for forward compatibility.
 	proto.UnimplementedSignerServer
@@ -48,7 +34,7 @@ var _ proto.SignerServer = (*signerServer)(nil)
 
 // SignMessage signs a message with the key specified in the key locator. The
 // returned signature is fixed-size LN wire format encoded.
-func (s *signerServer) SignMessage(ctx context.Context,
+func (s *signerServer) SignMessage(_ context.Context,
 	in *proto.SignMessageReq) (*proto.SignMessageResp, error) {
 
 	if in.Msg == nil {
@@ -68,14 +54,9 @@ func (s *signerServer) SignMessage(ctx context.Context,
 		Index:  uint32(in.KeyLoc.KeyIndex),
 	}
 
-	keyRing := ctx.Value(keyRingKey).(*keyring.KeyRing)
-	if keyRing == nil {
-		return nil, fmt.Errorf("no node/coin from macaroon")
-	}
-
 	// Use the schnorr signature algorithm to sign the message.
 	if in.SchnorrSig {
-		sig, err := keyRing.SignMessageSchnorr(
+		sig, err := s.server.keyRing.SignMessageSchnorr(
 			keyLocator, in.Msg, in.DoubleHash,
 			in.SchnorrSigTapTweak,
 		)
@@ -96,7 +77,7 @@ func (s *signerServer) SignMessage(ctx context.Context,
 
 	// Create the raw ECDSA signature first and convert it to the final wire
 	// format after.
-	sig, err := keyRing.SignMessage(
+	sig, err := s.server.keyRing.SignMessage(
 		keyLocator, in.Msg, in.DoubleHash, in.CompactSig,
 	)
 	if err != nil {
@@ -127,12 +108,6 @@ func (s *signerServer) DeriveSharedKey(ctx context.Context,
 		return nil, fmt.Errorf("must provide ephemeral pubkey")
 	}
 
-	// Check for backward compatibility. The caller either specifies the old
-	// key_loc field, or the new key_desc field, but not both.
-	if in.KeyDesc != nil && in.KeyLoc != nil {
-		return nil, fmt.Errorf("use either key_desc or key_loc")
-	}
-
 	// When key_desc is used, the key_desc.key_loc is expected as the caller
 	// needs to specify the KeyFamily.
 	if in.KeyDesc != nil && in.KeyDesc.KeyLoc == nil {
@@ -140,14 +115,9 @@ func (s *signerServer) DeriveSharedKey(ctx context.Context,
 			"key_desc.key_loc must also be set")
 	}
 
-	// We extract two params, rawKeyBytes and keyLoc. Notice their initial
-	// values will be overwritten if not using the deprecated RPC param.
-	var rawKeyBytes []byte
-	keyLoc := in.KeyLoc
-	if in.KeyDesc != nil {
-		keyLoc = in.KeyDesc.GetKeyLoc()
-		rawKeyBytes = in.KeyDesc.GetRawKeyBytes()
-	}
+	// We extract two params, rawKeyBytes and keyLoc.
+	rawKeyBytes := in.KeyDesc.GetRawKeyBytes()
+	keyLoc := in.KeyDesc.GetKeyLoc()
 
 	// When no keyLoc is supplied, defaults to the node's identity private
 	// key.
@@ -183,17 +153,13 @@ func (s *signerServer) DeriveSharedKey(ctx context.Context,
 		PubKey: pk,
 	}
 
-	keyRing := ctx.Value(keyRingKey).(*keyring.KeyRing)
-	if keyRing == nil {
-		return nil, fmt.Errorf("no node/coin from macaroon")
-	}
-
 	// Derive the shared key using ECDH and hashing the serialized
 	// compressed shared point.
-	sharedKeyHash, err := keyRing.ECDH(keyDescriptor, ephemeralPubkey)
+	sharedKeyHash, err := s.server.keyRing.ECDH(
+		keyDescriptor, ephemeralPubkey,
+	)
 	if err != nil {
-		err := fmt.Errorf("unable to derive shared key: %v", err)
-		signerLog.Error(err)
+		signerLog.Errorf("unable to derive shared key: %+v", err)
 		return nil, err
 	}
 

@@ -6,34 +6,18 @@
 package lndsigner
 
 import (
-	"errors"
-	"os"
-
 	"github.com/bottlepay/lndsigner/keyring"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btclog"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-var (
-	backend     = btclog.NewBackend(os.Stdout)
-	signerLog   = backend.Logger("SIGNER")
-	txscriptLog = backend.Logger("TXSCRIPT")
-	keyringLog  = backend.Logger("KEYRING")
-)
+var signerLog *zap.SugaredLogger
 
-func setLogLevel(level string) error {
-	logLevel, ok := btclog.LevelFromString(level)
-	if !ok {
-		return errors.New("invalid log level: " + level)
-	}
-
-	signerLog.SetLevel(logLevel)
-
-	txscriptLog.SetLevel(logLevel)
-	txscript.UseLogger(txscriptLog)
-
-	keyringLog.SetLevel(logLevel)
-	keyring.UseLogger(keyringLog)
-
-	return nil
+func init() {
+	config := zap.NewDevelopmentConfig()
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	config.EncoderConfig.EncodeCaller = nil
+	rawLog := zap.Must(config.Build())
+	signerLog = rawLog.Sugar()
+	keyring.UseLogger(signerLog.With(zap.Any("pkg", "keyring")))
 }

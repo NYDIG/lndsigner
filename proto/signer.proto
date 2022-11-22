@@ -79,13 +79,6 @@ message SharedKeyRequest {
   bytes ephemeral_pubkey = 1;
 
   /*
-  Deprecated. The optional key locator of the local key that should be used.
-  If this parameter is not set then the node's identity private key will be
-  used.
-  */
-  KeyLocator key_loc = 2 [ deprecated = true ];
-
-  /*
   A key descriptor describes the key used for performing ECDH. Either a key
   locator or a raw public key is expected, if neither is supplied, defaults to
   the node's identity private key.

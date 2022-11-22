@@ -45,7 +45,8 @@ func checkRequiredPubKey(derived *hdkeychain.ExtendedKey,
 	}
 
 	if !bytes.Equal(requiredBytes, pubKeyBytes) {
-		return errors.New("pubkey mismatch")
+		return fmt.Errorf("pubkey mismatch: wanted %x, got %x",
+			requiredBytes, pubKeyBytes)
 	}
 
 	return nil

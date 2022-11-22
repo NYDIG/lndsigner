@@ -19,8 +19,19 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
+
+type listedAccount struct {
+	Name             string `json:"name"`
+	AddressType      string `json:"address_type"`
+	XPub             string `json:"extended_public_key"`
+	DerivationPath   string `json:"derivation_path"`
+	ExternalKeyCount int    `json:"external_key_count"`
+	InternalKeyCount int    `json:"internal_key_count"`
+	WatchOnly        bool   `json:"watch_only"`
+}
 
 func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 	data *framework.FieldData) (*logical.Response, error) {
@@ -41,19 +52,17 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 	}
 	defer rootKey.Zero()
 
-	acctList := "{\n    \"accounts\": [\n"
+	acctList := make([]*listedAccount, 0, 260)
 
 	listAccount := func(purpose, coin, act uint32, addrType string,
-		version []byte) (string, error) {
-
-		strListing := ""
+		version []byte) (*listedAccount, error) {
 
 		// Derive purpose.
 		purposeKey, err := rootKey.DeriveNonStandard(
 			purpose + hdkeychain.HardenedKeyStart,
 		)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		defer purposeKey.Zero()
 
@@ -62,7 +71,7 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 			coin + hdkeychain.HardenedKeyStart,
 		)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		defer coinKey.Zero()
 
@@ -71,21 +80,21 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 			act + hdkeychain.HardenedKeyStart,
 		)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		defer actKey.Zero()
 
 		// Get account watch-only pubkey.
 		xPub, err := actKey.Neuter()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// Ensure we get the right HDVersion for the account key.
 		if version != nil {
 			xPub, err = xPub.CloneWithVersion(version)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 
@@ -93,40 +102,23 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 		strCoin := fmt.Sprintf("%d", coin)
 		strAct := fmt.Sprintf("%d", act)
 
-		strListing += "        {\n"
-
-		strListing += "            \"name\": \""
-		if act == 0 {
-			strListing += "default"
-		} else {
-			strListing += "act:" + strAct
+		listing := &listedAccount{
+			Name:        "act:" + strAct,
+			AddressType: addrType,
+			XPub:        xPub.String(),
+			DerivationPath: "m/" + strPurpose + "'/" + strCoin +
+				"'/" + strAct + "'",
 		}
-		strListing += "\",\n"
 
-		strListing += "            \"address_type\": \"" + addrType +
-			"\",\n"
+		if act == 0 {
+			listing.Name = "default"
+		}
 
-		strListing += "            \"extended_public_key\": \"" +
-			xPub.String() + "\",\n"
-
-		strListing += "            \"master_key_fingerprint\": null,\n"
-
-		strListing += "            \"derivation_path\": \"m/" +
-			strPurpose + "'/" + strCoin + "'/" + strAct + "'\",\n"
-
-		strListing += "            \"external_key_count\": 0,\n"
-
-		strListing += "            \"internal_key_count\": 0,\n"
-
-		strListing += "            \"watch_only\": false\n"
-
-		strListing += "        }"
-
-		return strListing, nil
+		return listing, nil
 	}
 
 	for _, acctInfo := range defaultPurposes {
-		strListing, err := listAccount(
+		listing, err := listAccount(
 			acctInfo.purpose,
 			0,
 			0,
@@ -139,11 +131,11 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 			return nil, err
 		}
 
-		acctList += strListing + ",\n"
+		acctList = append(acctList, listing)
 	}
 
 	for act := uint32(0); act <= MaxAcctID; act++ {
-		strListing, err := listAccount(
+		listing, err := listAccount(
 			Bip0043purpose,
 			net.HDCoinType,
 			act,
@@ -156,20 +148,21 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 			return nil, err
 		}
 
-		acctList += strListing
-
-		if act < MaxAcctID {
-			acctList += ","
-		}
-
-		acctList += "\n"
+		acctList = append(acctList, listing)
 	}
 
-	acctList += "    ]\n}"
+	resp, err := jsonutil.EncodeJSON(struct {
+		Accounts []*listedAccount `json:"accounts"`
+	}{
+		Accounts: acctList,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"acctList": acctList,
+			"acctList": string(resp),
 		},
 	}, nil
 }
@@ -464,7 +457,7 @@ func (b *backend) getNode(ctx context.Context, storage logical.Storage,
 		return nil, nil, errors.New("got invalid seed from storage")
 	}
 
-	net, err := getNet(string(entry.Value[hdkeychain.RecommendedSeedLen:]))
+	net, err := GetNet(string(entry.Value[hdkeychain.RecommendedSeedLen:]))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -492,7 +485,12 @@ func (b *backend) listNodes(ctx context.Context, req *logical.Request,
 		}
 		defer zero(seed)
 
-		respData[node] = int(net.HDCoinType)
+		netName := net.Name
+		if netName == "testnet3" {
+			netName = "testnet"
+		}
+
+		respData[node] = netName
 	}
 
 	return &logical.Response{
@@ -504,7 +502,7 @@ func (b *backend) createNode(ctx context.Context, req *logical.Request,
 	data *framework.FieldData) (*logical.Response, error) {
 
 	strNet := data.Get("network").(string)
-	net, err := getNet(strNet)
+	net, err := GetNet(strNet)
 	if err != nil {
 		b.Logger().Error("Failed to parse network", "error", err)
 		return nil, err
@@ -569,12 +567,12 @@ func (b *backend) createNode(ctx context.Context, req *logical.Request,
 	}, nil
 }
 
-func getNet(strNet string) (*chaincfg.Params, error) {
+func GetNet(strNet string) (*chaincfg.Params, error) {
 	switch strNet {
 	/*case "mainnet":
 	return &chaincfg.MainNetParams, nil
 	*/
-	case "testnet":
+	case "testnet", "testnet3":
 		return &chaincfg.TestNet3Params, nil
 
 	case "simnet":

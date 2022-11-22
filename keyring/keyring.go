@@ -84,11 +84,11 @@ type KeyDescriptor struct {
 type KeyRing struct {
 	client *api.Logical
 	node   string
-	coin   int
+	coin   uint32
 }
 
 // NewKeyRing returns a vault-backed key ring.
-func NewKeyRing(client *api.Logical, node string, coin int) *KeyRing {
+func NewKeyRing(client *api.Logical, node string, coin uint32) *KeyRing {
 	return &KeyRing{
 		client: client,
 		node:   node,
@@ -125,7 +125,7 @@ func (k *KeyRing) ECDH(keyDesc KeyDescriptor, pub *btcec.PublicKey) ([32]byte,
 		)
 	}
 
-	log.Tracef("Sending data %+v for signing request", reqData)
+	log.Debugf("Sending data %+v for shared key request", reqData)
 
 	sharedKeyResp, err := k.client.Write(
 		"lndsigner/lnd-nodes/ecdh",
@@ -135,7 +135,7 @@ func (k *KeyRing) ECDH(keyDesc KeyDescriptor, pub *btcec.PublicKey) ([32]byte,
 		return [32]byte{}, err
 	}
 
-	log.Tracef("Got data %+v in signing response", sharedKeyResp.Data)
+	log.Debugf("Got data %+v in shared key response", sharedKeyResp.Data)
 
 	sharedKeyHex, ok := sharedKeyResp.Data["sharedkey"].(string)
 	if !ok {
@@ -187,7 +187,7 @@ func (k *KeyRing) SignMessage(keyLoc KeyLocator, msg []byte, doubleHash bool,
 		reqData["method"] = "ecdsa-compact"
 	}
 
-	log.Tracef("Sending data %+v for signing request", reqData)
+	log.Debugf("Sending data %+v for signing request", reqData)
 
 	signResp, err := k.client.Write(
 		"lndsigner/lnd-nodes/sign",
@@ -197,7 +197,7 @@ func (k *KeyRing) SignMessage(keyLoc KeyLocator, msg []byte, doubleHash bool,
 		return nil, err
 	}
 
-	log.Tracef("Got data %+v in signing response", signResp.Data)
+	log.Debugf("Got data %+v in signing response", signResp.Data)
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
@@ -237,7 +237,7 @@ func (k *KeyRing) SignMessageSchnorr(keyLoc KeyLocator, msg []byte,
 		reqData["taptweak"] = hex.EncodeToString(taprootTweak)
 	}
 
-	log.Tracef("Sending data %+v for signing request", reqData)
+	log.Debugf("Sending data %+v for signing request", reqData)
 
 	signResp, err := k.client.Write(
 		"lndsigner/lnd-nodes/sign",
@@ -247,7 +247,7 @@ func (k *KeyRing) SignMessageSchnorr(keyLoc KeyLocator, msg []byte,
 		return nil, err
 	}
 
-	log.Tracef("Got data %+v in signing response", signResp.Data)
+	log.Debugf("Got data %+v in signing response", signResp.Data)
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
@@ -447,7 +447,7 @@ func (k *KeyRing) signSegWitV0(in *psbt.PInput, tx *wire.MsgTx,
 			idx, err)
 	}
 
-	log.Tracef("Got input %+v for signing with unknowns %+v", in,
+	log.Debugf("Got input %+v for signing with unknowns %+v", in,
 		in.Unknowns)
 
 	reqData := map[string]interface{}{
@@ -459,7 +459,7 @@ func (k *KeyRing) signSegWitV0(in *psbt.PInput, tx *wire.MsgTx,
 
 	getTweakParams(in.Unknowns, reqData)
 
-	log.Tracef("Sending data %+v for signing request", reqData)
+	log.Debugf("Sending data %+v for signing request", reqData)
 
 	signResp, err := k.client.Write(
 		"lndsigner/lnd-nodes/sign",
@@ -469,7 +469,7 @@ func (k *KeyRing) signSegWitV0(in *psbt.PInput, tx *wire.MsgTx,
 		return err
 	}
 
-	log.Tracef("Got data %+v in signing response", signResp.Data)
+	log.Debugf("Got data %+v in signing response", signResp.Data)
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
@@ -530,7 +530,7 @@ func (k *KeyRing) signSegWitV1KeySpend(in *psbt.PInput, tx *wire.MsgTx,
 
 	getTweakParams(in.Unknowns, reqData)
 
-	log.Tracef("Sending data %+v for signing request", reqData)
+	log.Debugf("Sending data %+v for signing request", reqData)
 
 	signResp, err := k.client.Write(
 		"lndsigner/lnd-nodes/sign",
@@ -585,7 +585,7 @@ func (k *KeyRing) signSegWitV1ScriptSpend(in *psbt.PInput, tx *wire.MsgTx,
 
 	getTweakParams(in.Unknowns, reqData)
 
-	log.Tracef("Sending data %+v for signing request", reqData)
+	log.Debugf("Sending data %+v for signing request", reqData)
 
 	signResp, err := k.client.Write(
 		"lndsigner/lnd-nodes/sign",

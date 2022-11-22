@@ -10,20 +10,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bottlepay/lndsigner/keyring"
 	"github.com/bottlepay/lndsigner/proto"
 	"github.com/btcsuite/btcd/btcutil/psbt"
-	"gopkg.in/macaroon-bakery.v2/bakery"
-)
-
-var (
-	// macPermissions maps RPC calls to the permissions they require.
-	walletPermissions = map[string][]bakery.Op{
-		"/proto.WalletKit/SignPsbt": {{
-			Entity: "onchain",
-			Action: "write",
-		}},
-	}
 )
 
 // walletKit is a sub-RPC server that exposes a tool kit which allows clients
@@ -45,13 +33,13 @@ var _ proto.WalletKitServer = (*walletKit)(nil)
 // (UTXO information, BIP32 derivation information, witness or sig scripts)
 // set.
 // If no error is returned, the PSBT is ready to be given to the next signer or
-// to be finalized if lnd was the last signer.
+// to be finalized if lndsignerd was the last signer.
 //
 // NOTE: This RPC only signs inputs (and only those it can sign), it does not
 // perform any other tasks (such as coin selection, UTXO locking or
 // input/output/fee value validation, PSBT finalization). Any input that is
 // incomplete will be skipped.
-func (w *walletKit) SignPsbt(ctx context.Context, req *proto.SignPsbtRequest) (
+func (w *walletKit) SignPsbt(_ context.Context, req *proto.SignPsbtRequest) (
 	*proto.SignPsbtResponse, error) {
 
 	packet, err := psbt.NewFromRawBytes(
@@ -79,12 +67,7 @@ func (w *walletKit) SignPsbt(ctx context.Context, req *proto.SignPsbtRequest) (
 	// Let the wallet do the heavy lifting. This will sign all inputs that
 	// we have the UTXO for. If some inputs can't be signed and don't have
 	// witness data attached, they will just be skipped.
-	keyRing := ctx.Value(keyRingKey).(*keyring.KeyRing)
-	if keyRing == nil {
-		return nil, fmt.Errorf("no node/coin from macaroon")
-	}
-
-	signedInputs, err := keyRing.SignPsbt(packet)
+	signedInputs, err := w.server.keyRing.SignPsbt(packet)
 	if err != nil {
 		return nil, fmt.Errorf("error signing PSBT: %v", err)
 	}

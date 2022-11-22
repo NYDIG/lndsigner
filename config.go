@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
+	"github.com/bottlepay/lndsigner/vault"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	flags "github.com/jessevdk/go-flags"
@@ -25,50 +25,28 @@ const (
 	defaultConfigFilename  = "signer.conf"
 	defaultTLSCertFilename = "tls.cert"
 	defaultTLSKeyFilename  = "tls.key"
-	defaultLogLevel        = "info"
-	defaultLogDirname      = "logs"
-	defaultLogFilename     = "signer.log"
 	defaultRPCPort         = 10009
 	defaultRPCHost         = "localhost"
-
-	defaultMaxLogFiles    = 3
-	defaultMaxLogFileSize = 10
-
-	// DefaultAutogenValidity is the default validity of a self-signed
-	// certificate. The value corresponds to 14 months
-	// (14 months * 30 days * 24 hours).
-	defaultTLSCertDuration = 14 * 30 * 24 * time.Hour
-
-	// Set defaults for a health check which ensures that the TLS certificate
-	// is not expired. Although this check is off by default (not all setups
-	// require it), we still set the other default values so that the health
-	// check can be easily enabled with sane defaults.
-	defaultTLSInterval = time.Minute
-	defaultTLSTimeout  = time.Second * 5
-	defaultTLSBackoff  = time.Minute
-	defaultTLSAttempts = 0
 )
 
 var (
-	// DefaultSignerDir is the default directory where lnd tries to find its
-	// configuration file and store its data. This is a directory in the
-	// user's application data, for example:
+	// DefaultSignerDir is the default directory where lndsignerd tries to
+	// find its configuration file and store its data. This is a directory
+	// in the user's application data, for example:
 	//   C:\Users\<username>\AppData\Local\Lndsigner on Windows
 	//   ~/.lndsigner on Linux
 	//   ~/Library/Application Support/Lndsigner on MacOS
 	DefaultSignerDir = btcutil.AppDataDir("lndsigner", false)
 
-	// DefaultConfigFile is the default full path of lnd's configuration
-	// file.
+	// DefaultConfigFile is the default full path of lndsignerd's
+	// configuration file.
 	DefaultConfigFile = filepath.Join(DefaultSignerDir, defaultConfigFilename)
-
-	defaultLogDir = filepath.Join(DefaultSignerDir, defaultLogDirname)
 
 	defaultTLSCertPath = filepath.Join(DefaultSignerDir, defaultTLSCertFilename)
 	defaultTLSKeyPath  = filepath.Join(DefaultSignerDir, defaultTLSKeyFilename)
 )
 
-// Config defines the configuration options for lnd.
+// Config defines the configuration options for lndsignerd.
 //
 // See LoadConfig for further details regarding the configuration
 // loading+parsing process.
@@ -76,20 +54,8 @@ type Config struct {
 	SignerDir  string `long:"signerdir" description:"The base directory that contains signer's data, logs, configuration file, etc."`
 	ConfigFile string `short:"C" long:"configfile" description:"Path to configuration file"`
 
-	TLSCertPath        string        `long:"tlscertpath" description:"Path to write the TLS certificate for lnd's RPC services"`
-	TLSKeyPath         string        `long:"tlskeypath" description:"Path to write the TLS private key for lnd's RPC services"`
-	TLSExtraIPs        []string      `long:"tlsextraip" description:"Adds an extra ip to the generated certificate"`
-	TLSExtraDomains    []string      `long:"tlsextradomain" description:"Adds an extra domain to the generated certificate"`
-	TLSAutoRefresh     bool          `long:"tlsautorefresh" description:"Re-generate TLS certificate and key if the IPs or domains are changed"`
-	TLSDisableAutofill bool          `long:"tlsdisableautofill" description:"Do not include the interface IPs or the system hostname in TLS certificate, use first --tlsextradomain as Common Name instead, if set"`
-	TLSCertDuration    time.Duration `long:"tlscertduration" description:"The duration for which the auto-generated TLS certificate will be valid for"`
-
-	OutputMacaroon string `long:"outputmacaroon" description:"Path to write a signer macaroon for the watch-only node"`
-	OutputAccounts string `long:"outputaccounts" description:"Path to write a JSON file with xpubs for the watch-only node"`
-
-	LogDir         string `long:"logdir" description:"Directory to log output."`
-	MaxLogFiles    int    `long:"maxlogfiles" description:"Maximum logfiles to keep (0 for no rotation)"`
-	MaxLogFileSize int    `long:"maxlogfilesize" description:"Maximum logfile size in MB"`
+	TLSCertPath string `long:"tlscertpath" description:"Path to write the TLS certificate for lndsignerd's RPC services"`
+	TLSKeyPath  string `long:"tlskeypath" description:"Path to write the TLS private key for lndsignerd's RPC services"`
 
 	// We'll parse these 'raw' string arguments into real net.Addrs in the
 	// loadConfig function. We need to expose the 'raw' strings so the
@@ -98,37 +64,23 @@ type Config struct {
 	RawRPCListeners []string `long:"rpclisten" description:"Add an interface/port/socket to listen for RPC connections"`
 	RPCListeners    []net.Addr
 
-	DebugLevel string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical}"`
-
-	// MainNet  bool `long:"mainnet" description:"NOT RECOMMENDED: Use the main network"`
-	TestNet3 bool `long:"testnet" description:"Use the test network"`
-	SimNet   bool `long:"simnet" description:"Use the simulation test network"`
-	RegTest  bool `long:"regtest" description:"Use the regression test network"`
-	SigNet   bool `long:"signet" description:"Use the signet test network"`
+	Network string `long:"network" description:"The network for which the node was created in the vault. One of: 'testnet', 'simnet', 'regtest', 'signet'"`
 
 	// ActiveNetParams contains parameters of the target chain.
 	ActiveNetParams chaincfg.Params
 
-	// seed contains the 32-byte wallet seed.
-	seed [32]byte
-
-	// macRootKey contains the 32-byte macaroon root key.
-	macRootKey [32]byte
+	// Node contains the node ID as a 66-character hex string.
+	NodePubKey string `long:"nodepubkey" description:"Node pubkey hex"`
 }
 
 // DefaultConfig returns all default values for the Config struct.
 func DefaultConfig() Config {
 	return Config{
-		SignerDir:       DefaultSignerDir,
-		ConfigFile:      DefaultConfigFile,
-		DebugLevel:      defaultLogLevel,
-		TLSCertPath:     defaultTLSCertPath,
-		TLSKeyPath:      defaultTLSKeyPath,
-		TLSCertDuration: defaultTLSCertDuration,
-		LogDir:          defaultLogDir,
-		MaxLogFiles:     defaultMaxLogFiles,
-		MaxLogFileSize:  defaultMaxLogFileSize,
-		ActiveNetParams: chaincfg.RegressionNetParams,
+		SignerDir:   DefaultSignerDir,
+		ConfigFile:  DefaultConfigFile,
+		TLSCertPath: defaultTLSCertPath,
+		TLSKeyPath:  defaultTLSKeyPath,
+		Network:     "regtest",
 	}
 }
 
@@ -155,13 +107,14 @@ func LoadConfig() (*Config, error) {
 
 	// If the config file path has not been modified by the user, then we'll
 	// use the default config file path. However, if the user has modified
-	// their lnddir, then we should assume they intend to use the config
+	// their signerdir, then we should assume they intend to use the config
 	// file within it.
 	configFileDir := CleanAndExpandPath(preCfg.SignerDir)
 	configFilePath := CleanAndExpandPath(preCfg.ConfigFile)
 	switch {
-	// User specified --lnddir but no --configfile. Update the config file
-	// path to the lnd config directory, but don't require it to exist.
+	// User specified --signerdir but no --configfile. Update the config
+	// file path to the lndsignerd config directory, but don't require it
+	// to exist.
 	case configFileDir != DefaultSignerDir &&
 		configFilePath == DefaultConfigFile:
 
@@ -255,13 +208,13 @@ func (u *usageError) Error() string {
 func ValidateConfig(cfg Config, fileParser, flagParser *flags.Parser) (
 	*Config, error) {
 
-	// If the provided lnd directory is not the default, we'll modify the
-	// path to all of the files and directories that will live within it.
+	// If the provided lndsignerd directory is not the default, we'll
+	// modify the path to all of the files and directories that will live
+	// within it.
 	signerDir := CleanAndExpandPath(cfg.SignerDir)
 	if signerDir != DefaultSignerDir {
 		cfg.TLSCertPath = filepath.Join(signerDir, defaultTLSCertFilename)
 		cfg.TLSKeyPath = filepath.Join(signerDir, defaultTLSKeyFilename)
-		cfg.LogDir = filepath.Join(signerDir, defaultLogDirname)
 	}
 
 	funcName := "ValidateConfig"
@@ -282,7 +235,7 @@ func ValidateConfig(cfg Config, fileParser, flagParser *flags.Parser) (
 				}
 			}
 
-			str := "Failed to create lnd directory '%s': %v"
+			str := "Failed to create lndsigner directory '%s': %v"
 			return mkErr(str, dir, err)
 		}
 
@@ -294,64 +247,24 @@ func ValidateConfig(cfg Config, fileParser, flagParser *flags.Parser) (
 	// to use them later on.
 	cfg.TLSCertPath = CleanAndExpandPath(cfg.TLSCertPath)
 	cfg.TLSKeyPath = CleanAndExpandPath(cfg.TLSKeyPath)
-	cfg.LogDir = CleanAndExpandPath(cfg.LogDir)
 
-	// Multiple networks can't be selected simultaneously.  Count
-	// number of network flags passed; assign active network params
-	// while we're at it.
-	numNets := 0
-	/*if cfg.MainNet {
-		numNets++
-		cfg.ActiveNetParams = chaincfg.MainNetParams
-	}*/
-	if cfg.TestNet3 {
-		numNets++
-		cfg.ActiveNetParams = chaincfg.TestNet3Params
+	params, err := vault.GetNet(cfg.Network)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.RegTest {
-		numNets++
-		cfg.ActiveNetParams = chaincfg.RegressionNetParams
-	}
-	if cfg.SimNet {
-		numNets++
-		cfg.ActiveNetParams = chaincfg.SimNetParams
-	}
-	if cfg.SigNet {
-		numNets++
-		cfg.ActiveNetParams = chaincfg.SigNetParams
-	}
-	if numNets > 1 {
-		str := "The mainnet, testnet, regtest, and simnet " +
-			"params can't be used together -- choose one " +
-			"of the four"
-		return nil, mkErr(str)
-	}
+	cfg.ActiveNetParams = *params
 
-	// The target network must be provided, otherwise, we won't
-	// know how to initialize the daemon.
-	if numNets == 0 {
-		str := "either --bitcoin.mainnet, or bitcoin.testnet," +
-			"bitcoin.simnet, or bitcoin.regtest " +
-			"must be specified"
-		return nil, mkErr(str)
-	}
-
-	// Create the lnd directory and all other sub-directories if they don't
-	// already exist. This makes sure that directory trees are also created
-	// for files that point to outside the lnddir.
+	// Create the lndsignerd directory and all other sub-directories if
+	// they don't already exist. This makes sure that directory trees are
+	// also created for files that point to outside the signerdir.
 	dirs := []string{
 		signerDir, filepath.Dir(cfg.TLSCertPath),
-		filepath.Dir(cfg.TLSKeyPath), filepath.Dir(cfg.OutputMacaroon),
+		filepath.Dir(cfg.TLSKeyPath),
 	}
 	for _, dir := range dirs {
 		if err := makeDirectory(dir); err != nil {
 			return nil, err
 		}
-	}
-
-	err := setLogLevel(cfg.DebugLevel)
-	if err != nil {
-		return nil, mkErr("error setting debug level: %v", err)
 	}
 
 	// At least one RPCListener is required. So listen on localhost per
@@ -364,22 +277,10 @@ func ValidateConfig(cfg Config, fileParser, flagParser *flags.Parser) (
 	// Add default port to all RPC listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.RPCListeners, err = NormalizeAddresses(
-		cfg.RawRPCListeners, strconv.Itoa(defaultRPCPort),
-		net.ResolveTCPAddr,
-	)
+		cfg.RawRPCListeners, strconv.Itoa(defaultRPCPort))
 	if err != nil {
 		return nil, mkErr("error normalizing RPC listen addrs: %v", err)
 	}
-
-	cfg.OutputAccounts = CleanAndExpandPath(cfg.OutputAccounts)
-
-	// Get the macaroon root key from the environment.
-	cfg.macRootKey, err = get32BytesFromEnv("SIGNER_MAC_ROOT_KEY")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.OutputMacaroon = CleanAndExpandPath(cfg.OutputMacaroon)
 
 	// All good, return the sanitized result.
 	return &cfg, nil
@@ -435,22 +336,16 @@ func get32BytesFromEnv(envKey string) ([32]byte, error) {
 	return key, nil
 }
 
-// TCPResolver is a function signature that resolves an address on a given
-// network.
-type TCPResolver = func(network, addr string) (*net.TCPAddr, error)
-
 // NormalizeAddresses returns a new slice with all the passed addresses
 // normalized with the given default port and all duplicates removed.
-func NormalizeAddresses(addrs []string, defaultPort string,
-	tcpResolver TCPResolver) ([]net.Addr, error) {
+func NormalizeAddresses(addrs []string, defaultPort string) ([]net.Addr,
+	error) {
 
 	result := make([]net.Addr, 0, len(addrs))
 	seen := map[string]struct{}{}
 
 	for _, addr := range addrs {
-		parsedAddr, err := ParseAddressString(
-			addr, defaultPort, tcpResolver,
-		)
+		parsedAddr, err := ParseAddressString(addr, defaultPort)
 		if err != nil {
 			return nil, fmt.Errorf("parse address %s failed: %w",
 				addr, err)
@@ -500,11 +395,9 @@ func verifyPort(address string, defaultPort string) string {
 }
 
 // ParseAddressString converts an address in string format to a net.Addr that is
-// compatible with lnd. UDP is not supported because lnd needs reliable
-// connections. We accept a custom function to resolve any TCP addresses so
-// that caller is able control exactly how resolution is performed.
-func ParseAddressString(strAddress string, defaultPort string,
-	tcpResolver TCPResolver) (net.Addr, error) {
+// compatible with lndsignerd.
+func ParseAddressString(strAddress string, defaultPort string) (net.Addr,
+	error) {
 
 	var parsedNetwork, parsedAddr string
 
@@ -521,13 +414,13 @@ func ParseAddressString(strAddress string, defaultPort string,
 	}
 
 	// Only TCP and Unix socket addresses are valid. We can't use IP or
-	// UDP only connections for anything we do in lnd.
+	// UDP only connections for anything we do here.
 	switch parsedNetwork {
 	case "unix", "unixpacket":
 		return net.ResolveUnixAddr(parsedNetwork, parsedAddr)
 
-	case "tcp", "tcp4", "tcp6":
-		return tcpResolver(
+	case "", "tcp", "tcp4", "tcp6":
+		return net.ResolveTCPAddr(
 			parsedNetwork, verifyPort(parsedAddr, defaultPort),
 		)
 

@@ -7,37 +7,18 @@ package lndsigner
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/hashicorp/vault/api"
-	"github.com/lightningnetwork/lnd/cert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"gopkg.in/macaroon-bakery.v2/bakery"
-	"gopkg.in/macaroon-bakery.v2/bakery/checkers"
-)
-
-const (
-	// outputFilePermissions is the file permission that is used for
-	// creating the signer macaroon file and the accounts list file.
-	//
-	// Why 640 is safe:
-	// Assuming a reasonably secure Linux system, it will have a
-	// separate group for each user. E.g. a new user lnd gets assigned group
-	// lnd which nothing else belongs to. A system that does not do this is
-	// inherently broken already.
-	//
-	// Since there is no other user in the group, no other user can read
-	// admin macaroon unless the administrator explicitly allowed it. Thus
-	// there's no harm allowing group read.
-	outputFilePermissions = 0640
 )
 
 // ListenerWithSignal is a net.Listener that has an additional Ready channel
@@ -47,11 +28,6 @@ type ListenerWithSignal struct {
 
 	// Ready will be closed by the server listening on Listener.
 	Ready chan struct{}
-
-	// MacChan is an optional way to pass the admin macaroon to the program
-	// that started lnd. The channel should be buffered to avoid lnd being
-	// blocked on sending to the channel.
-	MacChan chan []byte
 }
 
 // ListenerCfg is a wrapper around custom listeners that can be passed to lnd
@@ -74,25 +50,7 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 		return fmt.Errorf(format, args...)
 	}
 
-	var network string
-	switch {
-	/*case cfg.MainNet:
-	network = "mainnet"
-	*/
-	case cfg.TestNet3:
-		network = "testnet"
-
-	case cfg.SimNet:
-		network = "simnet"
-
-	case cfg.RegTest:
-		network = "regtest"
-
-	case cfg.SigNet:
-		network = "signet"
-	}
-
-	signerLog.Infof("Active chain: %v (network=%v)", "bitcoin", network)
+	signerLog.Infof("Active Bitcoin network: %v)", cfg.ActiveNetParams.Name)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -105,105 +63,6 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 	}
 
 	signerClient := vaultClient.Logical()
-
-	nodeListResp, err := signerClient.Read("lndsigner/lnd-nodes")
-	if err != nil {
-		return mkErr("error getting list of lnd nodes: %v", err)
-	}
-
-	// If we're asked to output a watch-only account list, do it here.
-	if cfg.OutputAccounts != "" {
-		for node := range nodeListResp.Data {
-			listAcctsResp, err := signerClient.ReadWithData(
-				"lndsigner/lnd-nodes/accounts",
-				map[string][]string{
-					"node": []string{node},
-				},
-			)
-			if err != nil {
-				return mkErr("error listing accounts for "+
-					"node %s: %v", node, err)
-			}
-
-			acctList, ok := listAcctsResp.Data["acctList"]
-			if !ok {
-				return mkErr("accounts not returned for "+
-					"node %s", node)
-			}
-
-			err = os.WriteFile(
-				cfg.OutputAccounts+"."+node,
-				[]byte(acctList.(string)),
-				outputFilePermissions,
-			)
-			if err != nil {
-				return mkErr("error writing account list: %v",
-					err)
-			}
-		}
-	}
-
-	// Create a new macaroon service.
-	rootKeyStore := &assignedRootKeyStore{
-		key: cfg.macRootKey[:],
-	}
-
-	// Check that we have a valid caveat, we only accept 3 formats.
-	checker := &caveatChecker{}
-
-	bakeryParams := bakery.BakeryParams{
-		RootKeyStore: rootKeyStore,
-		Location:     "lnd",
-		Checker:      checker,
-	}
-
-	bkry := bakery.New(bakeryParams)
-
-	// If we're asked to output a macaroon file, do it here.
-	if cfg.OutputMacaroon != "" {
-		for node, coin := range nodeListResp.Data {
-			caveats := []checkers.Caveat{
-				checkers.Caveat{
-					Condition: checkers.Condition(
-						"node",
-						node,
-					),
-				},
-				checkers.Caveat{
-					Condition: checkers.Condition(
-						"coin",
-						coin.(json.Number).String(),
-					),
-				},
-			}
-
-			mac, err := bkry.Oven.NewMacaroon(
-				ctx,
-				bakery.LatestVersion,
-				caveats,
-				nodePermissions...,
-			)
-			if err != nil {
-				return mkErr("error baking macaroon: %v", err)
-			}
-
-			macBytes, err := mac.M().MarshalBinary()
-			if err != nil {
-				return mkErr("error marshaling macaroon "+
-					"binary: %v", err)
-			}
-
-			err = os.WriteFile(
-				cfg.OutputMacaroon+"."+node,
-				macBytes,
-				outputFilePermissions,
-			)
-			if err != nil {
-				return mkErr("error writing account list: %v",
-					err)
-			}
-		}
-	}
 
 	serverOpts, err := getTLSConfig(cfg)
 	if err != nil {
@@ -237,7 +96,7 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 
 	// Initialize the rpcServer and add its interceptor to the server
 	// options.
-	rpcServer := newRPCServer(cfg, signerClient, bkry.Checker)
+	rpcServer := newRPCServer(cfg, signerClient)
 	serverOpts = append(
 		serverOpts,
 		grpc.ChainUnaryInterceptor(rpcServer.intercept),
@@ -275,79 +134,33 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 // getTLSConfig returns a TLS configuration for the gRPC server.
 func getTLSConfig(cfg *Config) ([]grpc.ServerOption, error) {
 
-	// Ensure we create TLS key and certificate if they don't exist.
-	if !fileExists(cfg.TLSCertPath) && !fileExists(cfg.TLSKeyPath) {
-		signerLog.Infof("Generating TLS certificates...")
-		err := cert.GenCertPair(
-			"signer autogenerated cert", cfg.TLSCertPath,
-			cfg.TLSKeyPath, cfg.TLSExtraIPs, cfg.TLSExtraDomains,
-			cfg.TLSDisableAutofill, cfg.TLSCertDuration,
-		)
-		if err != nil {
-			return nil, err
-		}
-		signerLog.Infof("Done generating TLS certificates")
-	}
-
-	certData, parsedCert, err := cert.LoadCert(
+	// The certData returned here is just a wrapper around the PEM blocks
+	// loaded from the file. The PEM is not yet fully parsed but a basic
+	// check is performed that the certificate and private key actually
+	// belong together.
+	certData, err := tls.LoadX509KeyPair(
 		cfg.TLSCertPath, cfg.TLSKeyPath,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// We check whether the certificate we have on disk match the IPs and
-	// domains specified by the config. If the extra IPs or domains have
-	// changed from when the certificate was created, we will refresh the
-	// certificate if auto refresh is active.
-	refresh := false
-	if cfg.TLSAutoRefresh {
-		refresh, err = cert.IsOutdated(
-			parsedCert, cfg.TLSExtraIPs,
-			cfg.TLSExtraDomains, cfg.TLSDisableAutofill,
-		)
-		if err != nil {
-			return nil, err
-		}
+	// Now parse the the PEM block of the certificate.
+	_, err = x509.ParseCertificate(certData.Certificate[0])
+	if err != nil {
+		return nil, err
 	}
 
-	// If the certificate expired or it was outdated, delete it and the TLS
-	// key and generate a new pair.
-	if time.Now().After(parsedCert.NotAfter) || refresh {
-		signerLog.Info("TLS certificate is expired or outdated, " +
-			"generating a new one")
-
-		err := os.Remove(cfg.TLSCertPath)
-		if err != nil {
-			return nil, err
-		}
-
-		err = os.Remove(cfg.TLSKeyPath)
-		if err != nil {
-			return nil, err
-		}
-
-		signerLog.Infof("Renewing TLS certificates...")
-		err = cert.GenCertPair(
-			"signer autogenerated cert", cfg.TLSCertPath,
-			cfg.TLSKeyPath, cfg.TLSExtraIPs, cfg.TLSExtraDomains,
-			cfg.TLSDisableAutofill, cfg.TLSCertDuration,
-		)
-		if err != nil {
-			return nil, err
-		}
-		signerLog.Infof("Done renewing TLS certificates")
-
-		// Reload the certificate data.
-		certData, _, err = cert.LoadCert(
-			cfg.TLSCertPath, cfg.TLSKeyPath,
-		)
-		if err != nil {
-			return nil, err
-		}
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{certData},
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		},
 	}
-
-	tlsCfg := cert.TLSConfFromCert(certData)
 
 	serverCreds := credentials.NewTLS(tlsCfg)
 	serverOpts := []grpc.ServerOption{grpc.Creds(serverCreds)}
