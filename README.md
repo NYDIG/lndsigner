@@ -134,4 +134,4 @@ Create the watch-only wallet using the accounts exported by the signer:
 ~$ lncli createwatchonly .lndsigner/accounts.json
 ```
 
-Now you can use your node as usual. Note that MuSig2 isn't supported yet. If you created multiple nodes in the vault, you can create a separate directory for each signer instance and each watch-only node and start it as above.
+Now you can use your node as usual. Note that MuSig2 isn't supported yet. If you created multiple nodes in the vault, you can create a separate directory for each signer instance (`.lndsigner`) and each watch-only node (`.lnd`) and start each as above.
