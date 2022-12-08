@@ -103,21 +103,24 @@ remotesigner.macaroonpath=any.macaroon
 
 Note that `lnd` checks that the macaroon file deserializes correctly but lndsigner ignores the macaroon.
 
-Next, get the account list for the node:
+Next, get the account list for the node (this works on Linux with `jq` installed):
 
 ```
-~/.lnd-watchonly$ VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root vault read lndsigner/lnd-nodes/accounts node=*pubkey* > accounts.json
+~/.lnd-watchonly$ VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root \
+   vault read lndsigner/lnd-nodes/accounts node=*pubkey* | \
+   tail -n 1 | sed s/acctList\\s*// | jq > accounts.json
 ```
 
 You'll get an `accounts.json` file that starts like:
 
 ```
-Key         Value
----         -----
-acctList    {"accounts":[{"name":"default","address_type":"HYBRID_NESTED_WITNESS_PUBKEY_HASH","extended_public_key":"...
+{
+  "accounts": [
+    {
+      "name": "default",
+      "address_type": "HYBRID_NESTED_WITNESS_PUBKEY_HASH",
+      "extended_public_key": "upub...
 ```
-
-Remove everything, including `acctList`, to the first `{` from the top of the file to get the actual JSON you'll need to import into `lnd` when you create the watch-only instance below. Your JSON file should start with `{"accounts":[{`. You can run it through `jq` to ensure the syntax is correct.
 
 Now, run `lnd` in watch-only mode:
 
