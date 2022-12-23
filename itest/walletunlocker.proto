@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package lnrpc;
+
+option go_package = "github.com/bottlepay/lndsigner/itest";
+
+/*
+ * Comments in this file will be directly parsed into the API
+ * Documentation as descriptions of the associated method, message, or field.
+ * These descriptions should go right above the definition of the object, and
+ * can be in either block or // comment format.
+ *
+ * An RPC method can be matched to an lncli command by placing a line in the
+ * beginning of the description in exactly the following format:
+ * lncli: `methodname`
+ *
+ * Failure to specify the exact name of the command will cause documentation
+ * generation to fail.
+ *
+ * More information on how exactly the gRPC documentation is generated from
+ * this proto file can be found here:
+ * https://github.com/lightninglabs/lightning-api
+ */
+
+// WalletUnlocker is a service that is used to set up a wallet password for
+// lnd at first startup, and unlock a previously set up wallet.
+service WalletUnlocker {
+  /*
+  InitWallet is used when lnd is starting up for the first time to fully
+  initialize the daemon and its internal wallet. At the very least a wallet
+  password must be provided. This will be used to encrypt sensitive material
+  on disk.
+
+  In the case of a recovery scenario, the user can also specify their aezeed
+  mnemonic and passphrase. If set, then the daemon will use this prior state
+  to initialize its internal wallet.
+
+  Alternatively, this can be used along with the GenSeed RPC to obtain a
+  seed, then present it to the user. Once it has been verified by the user,
+  the seed can be fed into this RPC in order to commit the new wallet.
+  */
+  rpc InitWallet(InitWalletRequest) returns (InitWalletResponse);
+}
+
+message InitWalletRequest {
+  /*
+  wallet_password is the passphrase that should be used to encrypt the
+  wallet. This MUST be at least 8 chars in length. After creation, this
+  password is required to unlock the daemon. When using REST, this field
+  must be encoded as base64.
+  */
+  bytes wallet_password = 1;
+
+  /*
+  watch_only is the third option of initializing a wallet: by importing
+  account xpubs only and therefore creating a watch-only wallet that does not
+  contain any private keys. That means the wallet won't be able to sign for
+  any of the keys and _needs_ to be run with a remote signer that has the
+  corresponding private keys and can serve signing RPC requests.
+  */
+  WatchOnly watch_only = 9;
+}
+message InitWalletResponse {
+  /*
+  The binary serialized admin macaroon that can be used to access the daemon
+  after creating the wallet. If the stateless_init parameter was set to true,
+  this is the ONLY copy of the macaroon and MUST be stored safely by the
+  caller. Otherwise a copy of this macaroon is also persisted on disk by the
+  daemon, together with other macaroon files.
+  */
+  bytes admin_macaroon = 1;
+}
+
+message WatchOnly {
+  /*
+  The list of accounts to import. There _must_ be an account for all of lnd's
+  main key scopes: BIP49/BIP84 (m/49'/0'/0', m/84'/0'/0', note that the
+  coin type is always 0, even for testnet/regtest) and lnd's internal key
+  scope (m/1017'/<coin_type>'/<account>'), where account is the key family as
+  defined in `keychain/derivation.go` (currently indices 0 to 9).
+   */
+  repeated WatchOnlyAccount accounts = 3;
+}
+
+message WatchOnlyAccount {
+  /*
+  Purpose is the first number in the derivation path, must be either 49, 84
+  or 1017.
+  */
+  uint32 purpose = 1;
+
+  /*
+  Coin type is the second number in the derivation path, this is _always_ 0
+  for purposes 49 and 84. It only needs to be set to 1 for purpose 1017 on
+  testnet or regtest.
+  */
+  uint32 coin_type = 2;
+
+  /*
+  Account is the third number in the derivation path. For purposes 49 and 84
+  at least the default account (index 0) needs to be created but optional
+  additional accounts are allowed. For purpose 1017 there needs to be exactly
+  one account for each of the key families defined in `keychain/derivation.go`
+  (currently indices 0 to 9)
+  */
+  uint32 account = 3;
+
+  /*
+  The extended public key at depth 3 for the given account.
+  */
+  string xpub = 4;
+}

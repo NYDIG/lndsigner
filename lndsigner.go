@@ -8,13 +8,17 @@ package lndsigner
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/bottlepay/lndsigner/vault"
 	"github.com/hashicorp/vault/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -223,4 +227,53 @@ func parseNetwork(addr net.Addr) string {
 // ListenOnAddress creates a listener that listens on the given address.
 func ListenOnAddress(addr net.Addr) (net.Listener, error) {
 	return net.Listen(parseNetwork(addr), addr.String())
+}
+
+type jsonAcctEl struct {
+	Xpub string `json:"extended_public_key"`
+	Path string `json:"derivation_path"`
+}
+
+// GetAccounts is currently used in integration testing, but will soon also
+// be used in policy enforcement. For current status, see the branch at
+// https://github.com/bottlepay/lndsigner/tree/offchain-ratelimiting
+func GetAccounts(acctList string) (map[[3]uint32]string, error) {
+	accounts := make(map[[3]uint32]string)
+
+	elements := make(map[string][]*jsonAcctEl)
+
+	err := json.Unmarshal([]byte(acctList), &elements)
+	if err != nil {
+		return nil, err
+	}
+
+	acctElements, ok := elements["accounts"]
+	if !ok {
+		return nil, fmt.Errorf("no accounts returned in JSON")
+	}
+
+	for _, acctEl := range acctElements {
+		pathEls := strings.Split(acctEl.Path, "/")
+		if len(pathEls) != 4 || pathEls[0] != "m" {
+			return nil, fmt.Errorf("invalid derivation path")
+		}
+
+		var derPath [3]uint32
+		for idx, el := range pathEls[1:] {
+			if !strings.HasSuffix(el, "'") {
+				return nil, vault.ErrElementNotHardened
+			}
+
+			intEl, err := strconv.ParseUint(el[:len(el)-1], 10, 32)
+			if err != nil {
+				return nil, err
+			}
+
+			derPath[idx] = uint32(intEl)
+		}
+
+		accounts[derPath] = acctEl.Xpub
+	}
+
+	return accounts, nil
 }

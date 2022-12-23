@@ -9,7 +9,7 @@
 - [x] sign messages for network announcements
 - [x] derive shared keys for peer connections
 - [x] sign PSBTs for on-chain transactions, channel openings/closes, HTLC updates, etc.
-- [ ] run itests
+- [x] run itests
 - [ ] do automated builds
 - [ ] do reproducible builds
 - [ ] perform musig2 ops
@@ -159,3 +159,20 @@ node    03c7926302ac72f51ef009dc169561734414b3c6bfd9fb0dc42cac93101c3c25bf
 ```
 
 Now you can use the imported key as before.
+
+## Testing
+You can run unit tests and integration tests, together or separately, in Docker or on your host system. To run tests inside Docker, from the project directory, run one of:
+
+ * `$ make docker-test` for unit tests
+ * `$ make docker-itest` for integration tests
+ * `$ make docker-test-all` for integration and unit tests
+
+To run tests directly on your development machine, you can use:
+
+ * `$ make test` for unit tests
+ * `$ make itest` for integration tests
+ * `$ make test-all` for integration and unit tests
+
+Before running integration tests on your development machine, ensure you have all the required binaries (bitcoind, bitcoin-cli, lnd, lncli, vault).
+
+To get a shell on a container that can run tests, you can use `make docker-shell`. Then, you can `make test`, `make itest`, or `make test-all` inside the container, just like you would directly on the host system.
