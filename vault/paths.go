@@ -59,167 +59,183 @@ type backend struct {
 	*framework.Backend
 }
 
-func (b *backend) paths() []*framework.Path {
-	return []*framework.Path{
-		&framework.Path{
-			Pattern: "lnd-nodes/?",
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ReadOperation:   b.listNodes,
-				logical.UpdateOperation: b.createNode,
-				logical.CreateOperation: b.createNode,
-			},
-			HelpSynopsis: "Create and list LND nodes",
-			HelpDescription: `
+func (b *backend) basePath() *framework.Path {
+	return &framework.Path{
+		Pattern: "lnd-nodes/?",
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ReadOperation:   b.listNodes,
+			logical.UpdateOperation: b.createNode,
+			logical.CreateOperation: b.createNode,
+		},
+		HelpSynopsis: "Create and list LND nodes",
+		HelpDescription: `
 
 GET  - list all node pubkeys and coin types for HD derivations
 POST - generate a new node seed and store it indexed by node pubkey
 
 `,
-			Fields: map[string]*framework.FieldSchema{
-				"network": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "Network, one of " +
-						"'mainnet', 'testnet', " +
-						"'simnet', 'signet', or " +
-						"'regtest'",
-					Default: 1,
-				},
+		Fields: map[string]*framework.FieldSchema{
+			"network": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "Network, one of " +
+					"'mainnet', 'testnet', " +
+					"'simnet', 'signet', or " +
+					"'regtest'",
+				Default: "regtest",
 			},
 		},
-		&framework.Path{
-			Pattern: "lnd-nodes/accounts/?",
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ReadOperation: b.listAccounts,
-			},
-			HelpSynopsis: "List accounts for import into LND " +
-				"watch-only node",
-			HelpDescription: `
+	}
+}
+
+func (b *backend) accountsPath() *framework.Path {
+	return &framework.Path{
+		Pattern: "lnd-nodes/accounts/?",
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ReadOperation: b.listAccounts,
+		},
+		HelpSynopsis: "List accounts for import into LND " +
+			"watch-only node",
+		HelpDescription: `
 
 GET - list all node accounts in JSON format suitable for import into watch-
 only LND
 
 `,
-			Fields: map[string]*framework.FieldSchema{
-				"node": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "node pubkey, must be " +
-						"66 hex characters",
-					Default: "",
-				},
+		Fields: map[string]*framework.FieldSchema{
+			"node": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "node pubkey, must be " +
+					"66 hex characters",
+				Default: "",
 			},
 		},
-		&framework.Path{
-			Pattern: "lnd-nodes/ecdh/?",
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.UpdateOperation: b.ecdh,
-				logical.CreateOperation: b.ecdh,
-			},
-			HelpSynopsis: "ECDH derived privkey with peer pubkey",
-			HelpDescription: `
+	}
+}
+
+func (b *backend) ecdhPath() *framework.Path {
+	return &framework.Path{
+		Pattern: "lnd-nodes/ecdh/?",
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.UpdateOperation: b.ecdh,
+			logical.CreateOperation: b.ecdh,
+		},
+		HelpSynopsis: "ECDH derived privkey with peer pubkey",
+		HelpDescription: `
 
 POST - ECDH the privkey derived with the submitted path with the specified
 peer pubkey
 
 `,
-			Fields: map[string]*framework.FieldSchema{
-				"node": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "node pubkey, must be " +
-						"66 hex characters",
-					Default: "",
-				},
-				"path": &framework.FieldSchema{
-					Type: framework.TypeCommaIntSlice,
-					Description: "derivation path, with " +
-						"the first 3 elements " +
-						"being hardened",
-					Default: []int{},
-				},
-				"pubkey": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "optional: pubkey for " +
-						"which to do ECDH, checked " +
-						"against derived pubkey to " +
-						"ensure a match",
-					Default: "",
-				},
-				"peer": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "pubkey for ECDH peer, " +
-						"must be 66 hex characters",
-					Default: "",
-				},
+		Fields: map[string]*framework.FieldSchema{
+			"node": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "node pubkey, must be " +
+					"66 hex characters",
+				Default: "",
+			},
+			"path": &framework.FieldSchema{
+				Type: framework.TypeCommaIntSlice,
+				Description: "derivation path, with " +
+					"the first 3 elements " +
+					"being hardened",
+				Default: []int{},
+			},
+			"pubkey": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: pubkey for " +
+					"which to do ECDH, checked " +
+					"against derived pubkey to " +
+					"ensure a match",
+				Default: "",
+			},
+			"peer": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "pubkey for ECDH peer, " +
+					"must be 66 hex characters",
+				Default: "",
 			},
 		},
-		&framework.Path{
-			Pattern: "lnd-nodes/sign/?",
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ReadOperation:   b.derivePubKey,
-				logical.UpdateOperation: b.deriveAndSign,
-				logical.CreateOperation: b.deriveAndSign,
-			},
-			HelpSynopsis: "Derive pubkeys and sign with privkeys",
-			HelpDescription: `
+	}
+}
+
+func (b *backend) signPath() *framework.Path {
+	return &framework.Path{
+		Pattern: "lnd-nodes/sign/?",
+		Callbacks: map[logical.Operation]framework.OperationFunc{
+			logical.ReadOperation:   b.derivePubKey,
+			logical.UpdateOperation: b.deriveAndSign,
+			logical.CreateOperation: b.deriveAndSign,
+		},
+		HelpSynopsis: "Derive pubkeys and sign with privkeys",
+		HelpDescription: `
 
 GET  - return the pubkey derived with the submitted path
 POST - sign a digest with the method specified using the privkey derived with
 the submitted path
 
 `,
-			Fields: map[string]*framework.FieldSchema{
-				"node": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "node pubkey, must be " +
-						"66 hex characters",
-					Default: "",
-				},
-				"path": &framework.FieldSchema{
-					Type: framework.TypeCommaIntSlice,
-					Description: "derivation path, with " +
-						"the first 3 elements " +
-						"being hardened",
-					Default: []int{},
-				},
-				"digest": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "digest to sign, must " +
-						"be hex-encoded 32 bytes",
-					Default: "",
-				},
-				"method": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "signing method: " +
-						"one of: ecdsa, " +
-						"ecdsa-compact, or schnorr",
-					Default: "",
-				},
-				"pubkey": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "optional: pubkey for " +
-						"which to sign, checked " +
-						"against derived pubkey to " +
-						"ensure a match",
-					Default: "",
-				},
-				"taptweak": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "optional: hex-encoded " +
-						"taproot tweak",
-					Default: "",
-				},
-				"ln1tweak": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "optional: hex-encoded " +
-						"LN single commit tweak",
-					Default: "",
-				},
-				"ln2tweak": &framework.FieldSchema{
-					Type: framework.TypeString,
-					Description: "optional: hex-encoded " +
-						"LN double revocation tweak",
-					Default: "",
-				},
+		Fields: map[string]*framework.FieldSchema{
+			"node": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "node pubkey, must be " +
+					"66 hex characters",
+				Default: "",
+			},
+			"path": &framework.FieldSchema{
+				Type: framework.TypeCommaIntSlice,
+				Description: "derivation path, with " +
+					"the first 3 elements " +
+					"being hardened",
+				Default: []int{},
+			},
+			"digest": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "digest to sign, must " +
+					"be hex-encoded 32 bytes",
+				Default: "",
+			},
+			"method": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "signing method: " +
+					"one of: ecdsa, " +
+					"ecdsa-compact, or schnorr",
+				Default: "",
+			},
+			"pubkey": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: pubkey for " +
+					"which to sign, checked " +
+					"against derived pubkey to " +
+					"ensure a match",
+				Default: "",
+			},
+			"taptweak": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: hex-encoded " +
+					"taproot tweak",
+				Default: "",
+			},
+			"ln1tweak": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: hex-encoded " +
+					"LN single commit tweak",
+				Default: "",
+			},
+			"ln2tweak": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: hex-encoded " +
+					"LN double revocation tweak",
+				Default: "",
 			},
 		},
+	}
+}
+
+func (b *backend) paths() []*framework.Path {
+	return []*framework.Path{
+		b.basePath(),
+		b.accountsPath(),
+		b.ecdhPath(),
+		b.signPath(),
 	}
 }
