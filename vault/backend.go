@@ -27,6 +27,10 @@ const (
 	seedLen = 16 // Matches LND usage
 )
 
+type backend struct {
+	*framework.Backend
+}
+
 type listedAccount struct {
 	Name             string `json:"name"`
 	AddressType      string `json:"address_type"`

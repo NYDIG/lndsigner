@@ -10,55 +10,6 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
-const (
-	// MaxAcctID is the number of accounts/key families to create on
-	// initialization.
-	MaxAcctID = 255
-
-	Bip0043purpose = 1017
-	NodeKeyAcct    = 6
-)
-
-var (
-	// defaultPurposes is a list of non-LN(1017) purposes for which we
-	// should create a m/purpose'/0'/0' account as well as their default
-	// address types.
-	defaultPurposes = []struct {
-		purpose   uint32
-		addrType  string
-		hdVersion [2][4]byte
-	}{
-		{
-			purpose:  49,
-			addrType: "HYBRID_NESTED_WITNESS_PUBKEY_HASH",
-			hdVersion: [2][4]byte{
-				[4]byte{0x04, 0x9d, 0x7c, 0xb2}, // ypub
-				[4]byte{0x04, 0x4a, 0x52, 0x62}, // upub
-			},
-		},
-		{
-			purpose:  84,
-			addrType: "WITNESS_PUBKEY_HASH",
-			hdVersion: [2][4]byte{
-				[4]byte{0x04, 0xb2, 0x47, 0x46}, // zpub
-				[4]byte{0x04, 0x5f, 0x1c, 0xf6}, // vpub
-			},
-		},
-		{
-			purpose:  86,
-			addrType: "TAPROOT_PUBKEY",
-			hdVersion: [2][4]byte{
-				[4]byte{0x04, 0x88, 0xb2, 0x1e}, // xpub
-				[4]byte{0x04, 0x35, 0x87, 0xcf}, // tpub
-			},
-		},
-	}
-)
-
-type backend struct {
-	*framework.Backend
-}
-
 // TODO(aakselrod): expand text documentation throughout this file where
 // fields are available, in order to auto-generate docs.
 func wrapOp(f framework.OperationFunc) framework.OperationHandler {
