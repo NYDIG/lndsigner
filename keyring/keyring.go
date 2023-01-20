@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 
 	"github.com/bottlepay/lndsigner/vault"
@@ -79,16 +78,22 @@ type KeyDescriptor struct {
 	PubKey *btcec.PublicKey
 }
 
+// logicalWriter is an interface that specifies the relevant methods of the
+// vault/api.Logical struct for mocking in tests.
+type logicalWriter interface {
+	Write(string, map[string]interface{}) (*api.Secret, error)
+}
+
 // KeyRing is an HD keyring backed by pre-derived in-memory account keys from
 // which index keys can be quickly derived on demand.
 type KeyRing struct {
-	client *api.Logical
+	client logicalWriter
 	node   string
 	coin   uint32
 }
 
 // NewKeyRing returns a vault-backed key ring.
-func NewKeyRing(client *api.Logical, node string, coin uint32) *KeyRing {
+func NewKeyRing(client logicalWriter, node string, coin uint32) *KeyRing {
 	return &KeyRing{
 		client: client,
 		node:   node,
@@ -139,7 +144,7 @@ func (k *KeyRing) ECDH(keyDesc KeyDescriptor, pub *btcec.PublicKey) ([32]byte,
 
 	sharedKeyHex, ok := sharedKeyResp.Data["sharedkey"].(string)
 	if !ok {
-		return [32]byte{}, errors.New("vault returned no shared key")
+		return [32]byte{}, ErrNoSharedKeyReturned
 	}
 
 	sharedKeyBytes, err := hex.DecodeString(sharedKeyHex)
@@ -148,7 +153,7 @@ func (k *KeyRing) ECDH(keyDesc KeyDescriptor, pub *btcec.PublicKey) ([32]byte,
 	}
 
 	if len(sharedKeyBytes) != 32 {
-		return [32]byte{}, errors.New("vault returned bad shared key")
+		return [32]byte{}, ErrBadSharedKey
 	}
 
 	var sharedKeyByteArray [32]byte
@@ -201,7 +206,7 @@ func (k *KeyRing) SignMessage(keyLoc KeyLocator, msg []byte, doubleHash bool,
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
-		return nil, errors.New("vault returned no signature")
+		return nil, ErrNoSignatureReturned
 	}
 
 	return hex.DecodeString(signatureHex)
@@ -251,7 +256,7 @@ func (k *KeyRing) SignMessageSchnorr(keyLoc KeyLocator, msg []byte,
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
-		return nil, errors.New("vault returned no signature")
+		return nil, ErrNoSignatureReturned
 	}
 
 	signatureBytes, err := hex.DecodeString(signatureHex)
@@ -276,6 +281,9 @@ func (k *KeyRing) SignPsbt(packet *psbt.Packet) ([]uint32, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	strPacket, _ := packet.B64Encode()
+	log.Debugf("Got PSBT to sign: %s", strPacket)
 
 	// Go through each input that doesn't have final witness data attached
 	// to it already and try to sign it. If there is nothing more to sign or
@@ -306,37 +314,6 @@ func (k *KeyRing) SignPsbt(packet *psbt.Packet) ([]uint32, error) {
 		if len(in.Bip32Derivation) == 0 {
 			continue
 		}
-
-		/*// Let's try and derive the key now. This method will decide if
-		// it's a BIP49/84 key for normal on-chain funds or a key of the
-		// custom purpose 1017 key scope.
-		derivationInfo := in.Bip32Derivation[0]
-		privKey, err := k.deriveKeyByBIP32Path(derivationInfo.Bip32Path)
-		if err != nil {
-			log.Warnf("SignPsbt: Skipping input %d, error "+
-				"deriving signing key: %v", idx, err)
-			continue
-		}
-
-		// We need to make sure we actually derived the key that was
-		// expected to be derived.
-		pubKeysEqual := bytes.Equal(
-			derivationInfo.PubKey,
-			privKey.PubKey().SerializeCompressed(),
-		)
-		if !pubKeysEqual {
-			log.Warnf("SignPsbt: Skipping input %d, derived "+
-				"public key %x does not match bip32 "+
-				"derivation info public key %x", idx,
-				privKey.PubKey().SerializeCompressed(),
-				derivationInfo.PubKey)
-			continue
-		}
-
-		// Do we need to tweak anything? Single or double tweaks are
-		// sent as custom/proprietary fields in the PSBT input section.
-		privKey = maybeTweakPrivKeyPsbt(in.Unknowns, privKey)
-		*/
 
 		// What kind of signature is expected from us and do we have all
 		// information we need?
@@ -384,39 +361,6 @@ func (k *KeyRing) SignPsbt(packet *psbt.Packet) ([]uint32, error) {
 		}
 
 		signedInputs = append(signedInputs, uint32(idx))
-
-		/* newTx := packet.UnsignedTx.Copy()
-		newTx.TxIn[0].SignatureScript = in.RedeemScript
-		newTx.TxIn[0].Witness = wire.TxWitness{
-			in.PartialSigs[0].Signature,
-			in.PartialSigs[0].PubKey,
-		}
-
-		log.Infof("Executing engine on tx input %+v (from %+v)",
-			newTx.TxIn[0], in)
-
-		engine, err := txscript.NewEngine(
-			in.WitnessUtxo.PkScript,
-			newTx,
-			idx,
-			txscript.StandardVerifyFlags,
-			txscript.NewSigCache(10),
-			sigHashes,
-			in.WitnessUtxo.Value,
-			prevOutputFetcher,
-		)
-		if err != nil {
-			log.Errorf("Error creating engine: %v", err)
-			continue
-		}
-
-		err = engine.Execute()
-		if err != nil {
-			log.Errorf("Error executing engine: %v", err)
-			continue
-		}
-
-		log.Infof("Succeeded executing engine") */
 	}
 
 	return signedInputs, nil
@@ -473,7 +417,7 @@ func (k *KeyRing) signSegWitV0(in *psbt.PInput, tx *wire.MsgTx,
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
-		return errors.New("vault returned no signature")
+		return ErrNoSignatureReturned
 	}
 
 	signatureBytes, err := hex.DecodeString(signatureHex)
@@ -483,7 +427,7 @@ func (k *KeyRing) signSegWitV0(in *psbt.PInput, tx *wire.MsgTx,
 
 	pubKeyHex, ok := signResp.Data["pubkey"].(string)
 	if !ok {
-		return errors.New("vault returned no pubkey")
+		return ErrNoPubkeyReturned
 	}
 
 	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
@@ -542,8 +486,10 @@ func (k *KeyRing) signSegWitV1KeySpend(in *psbt.PInput, tx *wire.MsgTx,
 
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
-		return errors.New("vault returned no signature")
+		return ErrNoSignatureReturned
 	}
+
+	log.Debugf("Got data %+v in signing response", signResp.Data)
 
 	signatureBytes, err := hex.DecodeString(signatureHex)
 	if err != nil {
@@ -595,9 +541,11 @@ func (k *KeyRing) signSegWitV1ScriptSpend(in *psbt.PInput, tx *wire.MsgTx,
 		return err
 	}
 
+	log.Debugf("Got data %+v in signing response", signResp.Data)
+
 	signatureHex, ok := signResp.Data["signature"].(string)
 	if !ok {
-		return errors.New("vault returned no signature")
+		return ErrNoSignatureReturned
 	}
 
 	signatureBytes, err := hex.DecodeString(signatureHex)
