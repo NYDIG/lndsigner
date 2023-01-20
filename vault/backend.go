@@ -513,22 +513,30 @@ func (b *backend) createNode(ctx context.Context, req *logical.Request,
 	data *framework.FieldData) (*logical.Response, error) {
 
 	strNet := data.Get("network").(string)
-	net, err := GetNet(strNet)
-	if err != nil {
-		b.Logger().Error("Failed to parse network", "error", err)
-		return nil, err
-	}
 
 	var seed []byte
 	defer zero(seed)
 
-	err = hdkeychain.ErrUnusableSeed
+	err := hdkeychain.ErrUnusableSeed
 	for err == hdkeychain.ErrUnusableSeed {
 		seed, err = hdkeychain.GenerateSeed(seedLen)
 	}
 	if err != nil {
 		b.Logger().Error("Failed to generate new LND seed",
 			"error", err)
+		return nil, err
+	}
+
+	return b.newNode(ctx, req.Storage, seed, strNet, "")
+}
+
+func (b *backend) newNode(ctx context.Context, storage logical.Storage,
+	seed []byte, strNet, reqKey string) (*logical.Response, error) {
+
+	net, err := GetNet(strNet)
+	if err != nil {
+		b.Logger().Error("Failed to parse network", "error", err,
+			"network", strNet)
 		return nil, err
 	}
 
@@ -547,27 +555,40 @@ func (b *backend) createNode(ctx context.Context, req *logical.Request,
 
 	pubKeyBytes, err := extKeyToPubBytes(nodePubKey)
 	if err != nil {
-		b.Logger().Error("createNode: Failed to get pubkey bytes",
+		b.Logger().Error("newNode: Failed to get pubkey bytes",
 			"error", err)
 		return nil, err
 	}
 
 	strPubKey := hex.EncodeToString(pubKeyBytes)
+
+	if reqKey != "" && strPubKey != reqKey {
+		b.Logger().Error("newNode: node pubkey mismatch")
+		return nil, ErrNodePubkeyMismatch
+	}
+
 	nodePath := "lnd-nodes/" + strPubKey
 
+	obj, err := storage.Get(ctx, nodePath)
+	if err == nil && obj != nil {
+		b.Logger().Error("newNode: node already exists",
+			"node", strPubKey)
+		return nil, ErrNodeAlreadyExists
+	}
+
 	seed = append(seed, []byte(strNet)...)
-	err = req.Storage.Put(ctx, &logical.StorageEntry{
+	err = storage.Put(ctx, &logical.StorageEntry{
 		Key:      nodePath,
 		Value:    seed,
 		SealWrap: true,
 	})
 	if err != nil {
 		b.Logger().Error("Failed to save seed for node",
-			"error", err)
+			"node", strPubKey, "error", err)
 		return nil, err
 	}
 
-	b.Logger().Info("Wrote new LND node seed", "pubkey", strPubKey)
+	b.Logger().Info("Wrote new LND seed", "node", strPubKey)
 
 	return &logical.Response{
 		Data: map[string]interface{}{
@@ -594,7 +615,7 @@ func GetNet(strNet string) (*chaincfg.Params, error) {
 		return &chaincfg.RegressionNetParams, nil
 
 	default:
-		return nil, errors.New("invalid network specified: " + strNet)
+		return nil, ErrInvalidNetwork
 	}
 }
 

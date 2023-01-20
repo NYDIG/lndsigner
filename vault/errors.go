@@ -5,6 +5,9 @@ import (
 )
 
 var (
+	ErrNodeAlreadyExists         = errors.New("node already exists")
+	ErrNodePubkeyMismatch        = errors.New("node pubkey mismatch")
+	ErrInvalidNetwork            = errors.New("invalid network")
 	ErrInvalidPeerPubkey         = errors.New("invalid peer pubkey")
 	ErrInvalidNodeID             = errors.New("invalid node id")
 	ErrNodeNotFound              = errors.New("node not found")
