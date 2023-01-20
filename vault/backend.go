@@ -23,6 +23,10 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
+const (
+	seedLen = 16 // Matches LND usage
+)
+
 type listedAccount struct {
 	Name             string `json:"name"`
 	AddressType      string `json:"address_type"`
@@ -456,16 +460,16 @@ func (b *backend) getNode(ctx context.Context, storage logical.Storage,
 		return nil, nil, ErrNodeNotFound
 	}
 
-	if len(entry.Value) <= hdkeychain.RecommendedSeedLen {
+	if len(entry.Value) <= seedLen {
 		return nil, nil, ErrInvalidSeedFromStorage
 	}
 
-	net, err := GetNet(string(entry.Value[hdkeychain.RecommendedSeedLen:]))
+	net, err := GetNet(string(entry.Value[seedLen:]))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return entry.Value[:hdkeychain.RecommendedSeedLen], net, nil
+	return entry.Value[:seedLen], net, nil
 }
 
 func (b *backend) listNodes(ctx context.Context, req *logical.Request,
@@ -516,9 +520,7 @@ func (b *backend) createNode(ctx context.Context, req *logical.Request,
 
 	err = hdkeychain.ErrUnusableSeed
 	for err == hdkeychain.ErrUnusableSeed {
-		seed, err = hdkeychain.GenerateSeed(
-			hdkeychain.RecommendedSeedLen,
-		)
+		seed, err = hdkeychain.GenerateSeed(seedLen)
 	}
 	if err != nil {
 		b.Logger().Error("Failed to generate new LND seed",
