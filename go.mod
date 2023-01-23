@@ -10,6 +10,7 @@ require (
 	github.com/hashicorp/vault/api v1.8.0
 	github.com/hashicorp/vault/sdk v0.6.0
 	github.com/jessevdk/go-flags v1.4.0
+	github.com/stretchr/testify v1.8.0
 	github.com/tv42/zbase32 v0.0.0-20160707012821-501572607d02
 	go.uber.org/zap v1.23.0
 	google.golang.org/grpc v1.47.0
@@ -21,6 +22,7 @@ require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/cenkalti/backoff/v3 v3.0.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.5.0 // indirect
@@ -55,6 +57,7 @@ require (
 	github.com/oklog/run v1.0.0 // indirect
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
@@ -66,6 +69,7 @@ require (
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	google.golang.org/genproto v0.0.0-20210924002016-3dee208752a0 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // This replace is for https://github.com/advisories/GHSA-w73w-5m7g-f7qc
