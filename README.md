@@ -1,17 +1,22 @@
 # lndsigner
 `lndsigner` is a [remote signer](https://github.com/lightningnetwork/lnd/blob/master/docs/remote-signing.md) for [lnd](https://github.com/lightningnetwork/lnd). Currently, it can do the following:
 - [x] store seeds for multiple nodes in [Hashicorp Vault](https://github.com/hashicorp/vault/)
+- [x] securely generate new node seeds in vault
+- [x] import seed/pass phrases
+- [x] run unit tests 
 - [x] perform derivation and signing operations in a Vault plugin
-- [x] export account list for watch-only lnd instance on startup
+- [x] export account list as JSON from vault
 - [x] sign messages for network announcements
 - [x] derive shared keys for peer connections
 - [x] sign PSBTs for on-chain transactions, channel openings/closes, HTLC updates, etc.
+- [ ] run itests
+- [ ] do automated builds
+- [ ] do reproducible builds
 - [ ] perform musig2 ops
 - [ ] track on-chain wallet state and enforce policy for on-chain transactions
 - [ ] track channel state and enforce policy for channel updates
 - [ ] allow preauthorizations for on-chain transactions, channel opens/closes, and channel updates
 - [ ] allow an interceptor to determine whether or not to sign
-- [ ] run unit tests and itests, do automated/reproducible builds
 - [ ] log and gather metrics coherently
 - [ ] enforce custom SELinux policy to harden plugin execution environment
 
@@ -135,3 +140,22 @@ Create the watch-only wallet using the accounts exported by the signer:
 ```
 
 Now you can use your node as usual. Note that MuSig2 isn't supported yet. If you created multiple nodes in the vault, you can create a separate directory for each signer instance (`.lndsigner`) and each watch-only node (`.lnd`) and start each as above.
+
+You can also import a seedphrase, optionally protected by a passphrase, into the vault if you have a backup from an existing LND installation:
+```
+~$ vault write lndsigner/lnd-nodes/import \
+   seedphrase="abstract inch live custom just tray hockey enroll upon friend mass author filter desert parrot network finger uniform alley artefact path palace chicken diet" \
+   passphrase=weks1234 \
+   network=regtest \
+   node=03c7926302ac72f51ef009dc169561734414b3c6bfd9fb0dc42cac93101c3c25bf
+```
+
+Note that the `node` parameter is optional and used to check that the correct node pubkey is derived from the seed and network passed to the vault. You should get output like this if the command succeeds:
+
+```
+Key     Value
+---     -----
+node    03c7926302ac72f51ef009dc169561734414b3c6bfd9fb0dc42cac93101c3c25bf
+```
+
+Now you can use the imported key as before.

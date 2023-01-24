@@ -45,6 +45,49 @@ POST - generate a new node seed and store it indexed by node pubkey
 	}
 }
 
+func (b *backend) importPath() *framework.Path {
+	return &framework.Path{
+		Pattern: "lnd-nodes/import/?",
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.UpdateOperation: wrapOp(b.importNode),
+		},
+		HelpSynopsis: "Import existing LND node into vault",
+		HelpDescription: `
+
+POST - import existing LND node into vault with seedphrase and passphrase
+
+`,
+		Fields: map[string]*framework.FieldSchema{
+			"node": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: node pubkey, " +
+					"must be 66 hex characters",
+				Default: "",
+			},
+			"network": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "Network, one of " +
+					"'mainnet', 'testnet', " +
+					"'simnet', 'signet', or " +
+					"'regtest'",
+				Default: "regtest",
+			},
+			"seedphrase": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "seed phrase to import, " +
+					"use instead of seed",
+				Default: "",
+			},
+			"passphrase": &framework.FieldSchema{
+				Type: framework.TypeString,
+				Description: "optional: passphrase, " +
+					"use only with seed phrase",
+				Default: "",
+			},
+		},
+	}
+}
+
 func (b *backend) accountsPath() *framework.Path {
 	return &framework.Path{
 		Pattern: "lnd-nodes/accounts/?",
@@ -190,6 +233,7 @@ the submitted path
 func (b *backend) paths() []*framework.Path {
 	return []*framework.Path{
 		b.basePath(),
+		b.importPath(),
 		b.accountsPath(),
 		b.ecdhPath(),
 		b.signPath(),

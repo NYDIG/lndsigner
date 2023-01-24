@@ -5,6 +5,13 @@ import (
 )
 
 var (
+	ErrSeedPhraseWrongLength     = errors.New("seed phrase must be 24 words")
+	ErrInvalidPassphrase         = errors.New("invalid passphrase")
+	ErrSeedPhraseNotBIP39        = errors.New("seed phrase must use BIP39 word list")
+	ErrBadCipherSeedVer          = errors.New("cipher seed version not recognized")
+	ErrWrongLengthChecksum       = errors.New("wrong length checksum")
+	ErrChecksumMismatch          = errors.New("checksum mismatch")
+	ErrWrongInternalVersion      = errors.New("wrong internal version")
 	ErrNodeAlreadyExists         = errors.New("node already exists")
 	ErrNodePubkeyMismatch        = errors.New("node pubkey mismatch")
 	ErrInvalidNetwork            = errors.New("invalid network")

@@ -509,6 +509,25 @@ func (b *backend) listNodes(ctx context.Context, req *logical.Request,
 	}, nil
 }
 
+func (b *backend) importNode(ctx context.Context, req *logical.Request,
+	data *framework.FieldData) (*logical.Response, error) {
+
+	strNode := data.Get("node").(string)
+	strNet := data.Get("network").(string)
+
+	seed, err := seedFromSeedAndPassPhrases(
+		data.Get("seedphrase").(string),
+		data.Get("passphrase").(string),
+	)
+	if err != nil {
+		b.Logger().Error("Failed to get seed from seed and "+
+			"pass phrases", "error", err)
+		return nil, err
+	}
+
+	return b.newNode(ctx, req.Storage, seed, strNet, strNode)
+}
+
 func (b *backend) createNode(ctx context.Context, req *logical.Request,
 	data *framework.FieldData) (*logical.Response, error) {
 
@@ -570,7 +589,10 @@ func (b *backend) newNode(ctx context.Context, storage logical.Storage,
 	nodePath := "lnd-nodes/" + strPubKey
 
 	obj, err := storage.Get(ctx, nodePath)
-	if err == nil && obj != nil {
+	if err != nil {
+		return nil, err
+	}
+	if obj != nil {
 		b.Logger().Error("newNode: node already exists",
 			"node", strPubKey)
 		return nil, ErrNodeAlreadyExists
