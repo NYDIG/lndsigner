@@ -65,7 +65,6 @@ func (b *backend) basePath() *framework.Path {
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.ReadOperation:   b.listNodes,
 			logical.UpdateOperation: b.createNode,
-			logical.CreateOperation: b.createNode,
 		},
 		HelpSynopsis: "Create and list LND nodes",
 		HelpDescription: `
@@ -117,7 +116,6 @@ func (b *backend) ecdhPath() *framework.Path {
 		Pattern: "lnd-nodes/ecdh/?",
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.UpdateOperation: b.ecdh,
-			logical.CreateOperation: b.ecdh,
 		},
 		HelpSynopsis: "ECDH derived privkey with peer pubkey",
 		HelpDescription: `
@@ -164,7 +162,6 @@ func (b *backend) signPath() *framework.Path {
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.ReadOperation:   b.derivePubKey,
 			logical.UpdateOperation: b.deriveAndSign,
-			logical.CreateOperation: b.deriveAndSign,
 		},
 		HelpSynopsis: "Derive pubkeys and sign with privkeys",
 		HelpDescription: `
