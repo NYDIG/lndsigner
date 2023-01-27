@@ -49,7 +49,8 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 		return fmt.Errorf(format, args...)
 	}
 
-	signerLog.Infof("Active Bitcoin network: %v)", cfg.ActiveNetParams.Name)
+	signerLog.Infow("Active Bitcoin network: ", "net",
+		cfg.ActiveNetParams.Name)
 
 	// Use defaults for vault client, including getting config from env.
 	vaultClient, err := api.NewClient(nil)
