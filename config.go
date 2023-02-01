@@ -6,7 +6,6 @@
 package lndsigner
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -310,30 +309,6 @@ func CleanAndExpandPath(path string) string {
 	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
 	// but the variables can still be expanded via POSIX-style $VARIABLE.
 	return filepath.Clean(os.ExpandEnv(path))
-}
-
-// get32BytesFromEnv gets a 64-byte hex string, encoding a 32-byte value, from
-// an environment variable.
-func get32BytesFromEnv(envKey string) ([32]byte, error) {
-	strHex, ok := os.LookupEnv(envKey)
-	if !ok {
-		return [32]byte{}, fmt.Errorf("env var %s not found: ", envKey)
-	}
-
-	keyBytes, err := hex.DecodeString(strHex)
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	if len(keyBytes) != 32 {
-		return [32]byte{}, fmt.Errorf("key length %d instead of 32",
-			len(keyBytes))
-	}
-
-	var key [32]byte
-	copy(key[:], keyBytes)
-
-	return key, nil
 }
 
 // NormalizeAddresses returns a new slice with all the passed addresses
