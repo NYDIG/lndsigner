@@ -86,8 +86,10 @@ func derivePrivKey(seed []byte, net *chaincfg.Params,
 	}
 	defer rootKey.Zero()
 
-	// Derive purpose.
-	purposeKey, err := rootKey.DeriveNonStandard(
+	// Derive purpose. We do these derivations with DeriveNonStandard to
+	// match btcwallet's (and thus lnd's) usage as shown here:
+	// https://github.com/btcsuite/btcwallet/blob/c314de6995500686c93716037f2279128cc1e9e8/waddrmgr/manager.go#L1459
+	purposeKey, err := rootKey.DeriveNonStandard( // nolint:staticcheck
 		derPath[0],
 	)
 	if err != nil {
@@ -96,7 +98,7 @@ func derivePrivKey(seed []byte, net *chaincfg.Params,
 	defer purposeKey.Zero()
 
 	// Derive coin type.
-	coinTypeKey, err := purposeKey.DeriveNonStandard(
+	coinTypeKey, err := purposeKey.DeriveNonStandard( // nolint:staticcheck
 		derPath[1],
 	)
 	if err != nil {
@@ -105,7 +107,7 @@ func derivePrivKey(seed []byte, net *chaincfg.Params,
 	defer coinTypeKey.Zero()
 
 	// Derive account.
-	accountKey, err := coinTypeKey.DeriveNonStandard(
+	accountKey, err := coinTypeKey.DeriveNonStandard( // nolint:staticcheck
 		derPath[2],
 	)
 	if err != nil {
@@ -114,14 +116,18 @@ func derivePrivKey(seed []byte, net *chaincfg.Params,
 	defer accountKey.Zero()
 
 	// Derive branch.
-	branchKey, err := accountKey.DeriveNonStandard(derPath[3])
+	branchKey, err := accountKey.DeriveNonStandard( // nolint:staticcheck
+		derPath[3],
+	)
 	if err != nil {
 		return nil, errors.New("error deriving branch")
 	}
 	defer branchKey.Zero()
 
 	// Derive index.
-	indexKey, err := branchKey.DeriveNonStandard(derPath[4])
+	indexKey, err := branchKey.DeriveNonStandard( // nolint:staticcheck
+		derPath[4],
+	)
 	if err != nil {
 		return nil, errors.New("error deriving index")
 	}

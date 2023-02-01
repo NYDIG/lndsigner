@@ -57,8 +57,11 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 	listAccount := func(purpose, coin, act uint32, addrType string,
 		version []byte) (*listedAccount, error) {
 
-		// Derive purpose.
-		purposeKey, err := rootKey.DeriveNonStandard(
+		// Derive purpose. We do these derivations with
+		// DeriveNonStandard to match btcwallet's (and thus lnd's)
+		// usage as shown here:
+		// https://github.com/btcsuite/btcwallet/blob/c314de6995500686c93716037f2279128cc1e9e8/waddrmgr/manager.go#L1459
+		purposeKey, err := rootKey.DeriveNonStandard( // nolint:staticcheck
 			purpose + hdkeychain.HardenedKeyStart,
 		)
 		if err != nil {
@@ -67,7 +70,7 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 		defer purposeKey.Zero()
 
 		// Derive coin.
-		coinKey, err := purposeKey.DeriveNonStandard(
+		coinKey, err := purposeKey.DeriveNonStandard( // nolint:staticcheck
 			coin + hdkeychain.HardenedKeyStart,
 		)
 		if err != nil {
@@ -76,7 +79,7 @@ func (b *backend) listAccounts(ctx context.Context, req *logical.Request,
 		defer coinKey.Zero()
 
 		// Derive account.
-		actKey, err := coinKey.DeriveNonStandard(
+		actKey, err := coinKey.DeriveNonStandard( // nolint:staticcheck
 			act + hdkeychain.HardenedKeyStart,
 		)
 		if err != nil {
