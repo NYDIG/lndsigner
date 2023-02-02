@@ -655,8 +655,6 @@ func getTweakParams(unknowns []*psbt.Unknown, reqData map[string]interface{}) {
 			return
 		}
 	}
-
-	return
 }
 
 // validateSigningMethod attempts to detect the signing method that is required
