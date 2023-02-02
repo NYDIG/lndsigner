@@ -6,7 +6,6 @@
 package lndsigner
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -51,10 +50,6 @@ func Main(cfg *Config, lisCfg ListenerCfg) error {
 	}
 
 	signerLog.Infof("Active Bitcoin network: %v)", cfg.ActiveNetParams.Name)
-
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	// Use defaults for vault client, including getting config from env.
 	vaultClient, err := api.NewClient(nil)
