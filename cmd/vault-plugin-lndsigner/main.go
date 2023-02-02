@@ -10,16 +10,20 @@ import (
 )
 
 func main() {
+	logger := hclog.New(&hclog.LoggerOptions{})
+
 	apiClientMeta := &api.PluginAPIClientMeta{}
 	flags := apiClientMeta.FlagSet()
-	flags.Parse(os.Args[1:])
+	err := flags.Parse(os.Args[1:])
+	if err != nil {
+		logger.Error("error parsing vault API client flags")
+		os.Exit(1)
+	}
 
 	tlsConfig := apiClientMeta.GetTLSConfig()
 	tlsProviderFunc := api.VaultPluginTLSProvider(tlsConfig)
 
-	logger := hclog.New(&hclog.LoggerOptions{})
-
-	err := plugin.Serve(&plugin.ServeOpts{
+	err = plugin.Serve(&plugin.ServeOpts{
 		BackendFactoryFunc: vault.Factory,
 		TLSProviderFunc:    tlsProviderFunc,
 		Logger:             logger,
