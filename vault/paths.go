@@ -59,12 +59,20 @@ type backend struct {
 	*framework.Backend
 }
 
+// TODO(aakselrod): expand text documentation throughout this file where
+// fields are available, in order to auto-generate docs.
+func wrapOp(f framework.OperationFunc) framework.OperationHandler {
+	return &framework.PathOperation{
+		Callback: f,
+	}
+}
+
 func (b *backend) basePath() *framework.Path {
 	return &framework.Path{
 		Pattern: "lnd-nodes/?",
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.ReadOperation:   b.listNodes,
-			logical.UpdateOperation: b.createNode,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.ReadOperation:   wrapOp(b.listNodes),
+			logical.UpdateOperation: wrapOp(b.createNode),
 		},
 		HelpSynopsis: "Create and list LND nodes",
 		HelpDescription: `
@@ -89,8 +97,8 @@ POST - generate a new node seed and store it indexed by node pubkey
 func (b *backend) accountsPath() *framework.Path {
 	return &framework.Path{
 		Pattern: "lnd-nodes/accounts/?",
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.ReadOperation: b.listAccounts,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.ReadOperation: wrapOp(b.listAccounts),
 		},
 		HelpSynopsis: "List accounts for import into LND " +
 			"watch-only node",
@@ -114,8 +122,8 @@ only LND
 func (b *backend) ecdhPath() *framework.Path {
 	return &framework.Path{
 		Pattern: "lnd-nodes/ecdh/?",
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.UpdateOperation: b.ecdh,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.UpdateOperation: wrapOp(b.ecdh),
 		},
 		HelpSynopsis: "ECDH derived privkey with peer pubkey",
 		HelpDescription: `
@@ -159,9 +167,9 @@ peer pubkey
 func (b *backend) signPath() *framework.Path {
 	return &framework.Path{
 		Pattern: "lnd-nodes/sign/?",
-		Callbacks: map[logical.Operation]framework.OperationFunc{
-			logical.ReadOperation:   b.derivePubKey,
-			logical.UpdateOperation: b.deriveAndSign,
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.ReadOperation:   wrapOp(b.derivePubKey),
+			logical.UpdateOperation: wrapOp(b.deriveAndSign),
 		},
 		HelpSynopsis: "Derive pubkeys and sign with privkeys",
 		HelpDescription: `
