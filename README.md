@@ -10,15 +10,8 @@
 - [x] derive shared keys for peer connections
 - [x] sign PSBTs for on-chain transactions, channel openings/closes, HTLC updates, etc.
 - [x] run itests
-- [ ] do automated builds
-- [ ] do reproducible builds
-- [ ] perform musig2 ops
-- [ ] track on-chain wallet state and enforce policy for on-chain transactions
-- [ ] track channel state and enforce policy for channel updates
-- [ ] allow preauthorizations for on-chain transactions, channel opens/closes, and channel updates
-- [ ] allow an interceptor to determine whether or not to sign
-- [ ] log and gather metrics coherently
-- [ ] enforce custom SELinux policy to harden plugin execution environment
+
+There is a [list of issues](https://github.com/bottlepay/lndsigner/issues?q=is%3Aissue+is%3Aopen+milestone%3Amainnet-ready) that tracks TODO items needed for a mainnet release.
 
 ## Usage
 
