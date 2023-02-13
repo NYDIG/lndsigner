@@ -2,17 +2,17 @@ ARG gover=1.19.5
 
 FROM golang:$gover
 
-ARG goplatform=amd64
-ARG cppplatform=x86_64
-ARG lnd=v0.15.5-beta
-ARG bitcoind=24.0.1
-ARG vault=1.12.2
+ARG goplatform
+ARG cplatform
+ARG lnd
+ARG bitcoind
+ARG vault
 
 RUN apt update && apt-get install -y zip
 
 RUN cd /root && \
-    wget https://bitcoincore.org/bin/bitcoin-core-$bitcoind/bitcoin-${bitcoind}-${cppplatform}-linux-gnu.tar.gz && \
-    tar xfz bitcoin-$bitcoind-$cppplatform-linux-gnu.tar.gz && \
+    wget https://bitcoincore.org/bin/bitcoin-core-$bitcoind/bitcoin-${bitcoind}-${cplatform}-linux-gnu.tar.gz && \
+    tar xfz bitcoin-$bitcoind-$cplatform-linux-gnu.tar.gz && \
     mv bitcoin-$bitcoind/bin/* /usr/local/bin/ && \
     wget https://github.com/lightningnetwork/lnd/releases/download/$lnd/lnd-linux-$goplatform-$lnd.tar.gz && \
     tar xfz lnd-linux-$goplatform-$lnd.tar.gz && \
