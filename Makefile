@@ -27,7 +27,7 @@ docker:
 	docker build -t $(IMG_NAME):latest --build-arg cplatform=$(CPLATFORM) \
 		--build-arg goplatform=$(GOPLATFORM) --build-arg gover=$(GOVER) \
 		--build-arg lnd=$(LND) --build-arg bitcoind=$(BITCOIND) \
-		--build-arg vault=$(VAULT) .
+		--build-arg vault=$(VAULT) -f Dockerfile.dev .
 
 # docker-itest runs itests in a docker container, then removes the container.
 docker-itest: docker
