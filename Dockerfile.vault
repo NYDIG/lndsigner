@@ -1,0 +1,11 @@
+ARG VAULT_VER=1.11.7
+
+FROM library/vault:${VAULT_VER}
+ARG TARGETARCH
+ARG VAULT_SIGNER_PLUGIN_VER
+
+ADD https://github.com/bottlepay/lndsigner/releases/download/${VAULT_SIGNER_PLUGIN_VER}/vault-plugin-lndsigner-linux-${TARGETARCH} /vault/plugins/vault-plugin-lndsigner
+ADD https://github.com/bottlepay/lndsigner/releases/download/${VAULT_SIGNER_PLUGIN_VER}/vault-plugin-lndsigner-linux-${TARGETARCH}.SHA256SUM /vault/plugins/vault-plugin-lndsigner.SHA256SUM
+ADD LICENSE /vault/plugins/vault-plugin-lndsigner.LICENSE
+
+RUN setcap cap_ipc_lock=+ep /vault/plugins/vault-plugin-lndsigner
