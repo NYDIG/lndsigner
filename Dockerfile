@@ -1,4 +1,4 @@
-ARG gover=1.19.5
+ARG gover=1.19.7
 
 # Build a release binary
 
@@ -11,7 +11,7 @@ RUN cd /go/src/github.com/nydig/lndsigner \
        github.com/nydig/lndsigner/cmd/...
 
 ### Build an Alpine image
-FROM alpine:3.16 as alpine
+FROM alpine:3.17 as alpine
 
 # Update CA certs
 RUN apk add --no-cache ca-certificates && rm -rf /var/cache/apk/*
