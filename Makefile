@@ -18,7 +18,7 @@ ifeq ($(CPLATFORM), arm64)
 endif 
 
 GOVER         := 1.19.7
-LND           := v0.15.5-beta
+LND           := v0.16.0-beta
 BITCOIND      := 24.0.1
 VAULT         := 1.12.2
 
