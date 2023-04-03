@@ -18,8 +18,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/bottlepay/lndsigner/vault"
 	"github.com/hashicorp/vault/api"
+	"github.com/nydig/lndsigner/vault"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -236,7 +236,7 @@ type jsonAcctEl struct {
 
 // GetAccounts is currently used in integration testing, but will soon also
 // be used in policy enforcement. For current status, see the branch at
-// https://github.com/bottlepay/lndsigner/tree/offchain-ratelimiting
+// https://github.com/aakselrod/lndsigner/tree/offchain-ratelimiting
 func GetAccounts(acctList string) (map[[3]uint32]string, error) {
 	accounts := make(map[[3]uint32]string)
 

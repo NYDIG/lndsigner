@@ -7,7 +7,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/bottlepay/lndsigner/proto";
+option go_package = "github.com/nydig/lndsigner/proto";
 
 /*
  * Comments in this file will be directly parsed into the API

@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/bottlepay/lndsigner/vault"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -20,6 +19,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/hashicorp/vault/api"
+	"github.com/nydig/lndsigner/vault"
 )
 
 // signMethod defines the different ways a signer can sign, given a specific

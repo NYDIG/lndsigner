@@ -9,9 +9,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bottlepay/lndsigner/keyring"
-	"github.com/bottlepay/lndsigner/proto"
 	"github.com/hashicorp/vault/api"
+	"github.com/nydig/lndsigner/keyring"
+	"github.com/nydig/lndsigner/proto"
 	"github.com/tv42/zbase32"
 	"google.golang.org/grpc"
 )

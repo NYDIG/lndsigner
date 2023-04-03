@@ -7,7 +7,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/bottlepay/lndsigner/proto";
+option go_package = "github.com/nydig/lndsigner/proto";
 
 // WalletKit is a service that gives access to the core functionalities of the
 // daemon's wallet.

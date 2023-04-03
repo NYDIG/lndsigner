@@ -1,4 +1,4 @@
-module github.com/bottlepay/lndsigner
+module github.com/nydig/lndsigner
 
 require (
 	github.com/Yawning/aez v0.0.0-20211027044916-e49e68abd344

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bottlepay/lndsigner"
 	"github.com/jessevdk/go-flags"
+	"github.com/nydig/lndsigner"
 )
 
 func main() {

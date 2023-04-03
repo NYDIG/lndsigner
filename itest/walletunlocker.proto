@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package lnrpc;
 
-option go_package = "github.com/bottlepay/lndsigner/itest";
+option go_package = "github.com/nydig/lndsigner/itest";
 
 /*
  * Comments in this file will be directly parsed into the API

@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bottlepay/lndsigner/vault"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	flags "github.com/jessevdk/go-flags"
+	"github.com/nydig/lndsigner/vault"
 )
 
 const (

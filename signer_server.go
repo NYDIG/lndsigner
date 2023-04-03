@@ -9,11 +9,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bottlepay/lndsigner/keyring"
-	"github.com/bottlepay/lndsigner/proto"
-	"github.com/bottlepay/lndsigner/vault"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/nydig/lndsigner/keyring"
+	"github.com/nydig/lndsigner/proto"
+	"github.com/nydig/lndsigner/vault"
 )
 
 // Server is a sub-server of the main RPC server: the signer RPC. This sub RPC

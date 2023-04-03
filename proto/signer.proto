@@ -9,7 +9,7 @@ import "lightning.proto";
 
 package proto;
 
-option go_package = "github.com/bottlepay/lndsigner/proto";
+option go_package = "github.com/nydig/lndsigner/proto";
 
 // Signer is a service that gives access to the signing functionality of the
 // daemon's wallet.

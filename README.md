@@ -11,7 +11,7 @@
 - [x] sign PSBTs for on-chain transactions, channel openings/closes, HTLC updates, etc.
 - [x] run itests
 
-There is a [list of issues](https://github.com/bottlepay/lndsigner/issues?q=is%3Aissue+is%3Aopen+milestone%3Amainnet-ready) that tracks TODO items needed for a mainnet release.
+There is a [list of issues](https://github.com/nydig/lndsigner/issues?q=is%3Aissue+is%3Aopen+milestone%3Amainnet-ready) that tracks TODO items needed for a mainnet release.
 
 ## Usage
 
