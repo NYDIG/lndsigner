@@ -1,0 +1,203 @@
+name: Build Release Artifacts
+
+on:
+  push:
+    tags:
+      - v*
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  VAULT_IMAGE_NAME: bottlepay/vault-plugin-lndsigner
+  GO_VERSION: 1.19.5
+
+jobs:
+  # This job fetches the latest minor revision for each currently supported vault version.
+  # The output of this job is used to construct the version matrix in the build-docker-vault job.
+  vault_latest_versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.generate.outputs.versions }}
+    steps:
+      - name: "Generate matrix"
+        id: generate
+        run: |
+          VAULT_VERSIONS=`curl https://raw.githubusercontent.com/docker-library/official-images/master/library/vault | grep -Eo '1\.(9|1[0123])\.[0-9]+' | jq --raw-input --raw-output --slurp 'split("\n") | del(.[] | select(. == "")) | tojson'`
+          echo "versions=$VAULT_VERSIONS" >> "$GITHUB_OUTPUT"
+
+  # This job builds the Vault plugin, and pushes it to the GitHub release
+  build-vault-plugin:
+    strategy:
+      matrix:
+        os: [ "linux" ]
+        arch: [ "amd64", "arm64" ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+
+      - name: Build plugin
+        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -buildvcs=false -o "vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}" ./cmd/vault-plugin-lndsigner/
+
+      - name: Create the SHA256 checksum file
+        run: shasum -a 256 "vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}" | cut -d " " -f1 > "vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}.SHA256SUM"
+
+      - name: Upload plugin assets to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}
+            vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}.SHA256SUM
+
+          body: |
+            ## Docker Images
+            All images are built for both `linux/amd64` and `linux/arm64` architectures.
+
+            ### lndsignerd
+            Pre-built docker images for the `lndsignerd` server are available in multiple flavours:
+
+              - Debian (Bullseye): `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}`
+              - Alpine Linux (3.17): `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-alpine`
+
+            ### vault-plugin-lndsigner
+            Pre-built extensions of the latest [base Vault images](https://hub.docker.com/_/vault) with `vault-plugin-lndsigner` pre-installed are available here:
+
+            [${{ env.REGISTRY }}/${{ env.VAULT_IMAGE_NAME }}](https://github.com/bottlepay/lndsigner/pkgs/container/vault-plugin-lndsigner)
+
+            Note that the images within this package are provided for testing purposes only. Running a Vault image from an untrusted source in production is not recommended.
+
+          generate_release_notes: true
+          prerelease: true
+
+  # This job extends the base Vault docker image by pre-installing the lndsigner plugin created
+  # by the build-vault-plugin job
+  build-docker-vault:
+    runs-on: ubuntu-latest
+    needs:
+      - vault_latest_versions
+      - build-vault-plugin
+    strategy:
+      matrix:
+        vault_version: ${{ fromJSON(needs.vault_latest_versions.outputs.versions) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Extract metadata (tags, labels) for Docker"
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.VAULT_IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+          flavor: |
+            prefix=${{ matrix.vault_version }}-lndsigner-
+            latest=${{ startsWith(matrix.vault_version, '1.12') }}
+          labels: |
+            org.opencontainers.image.title=Vault (with lndsigner)
+            org.opencontainers.image.description=The base Hashicorp Vault image (library/vault), with the lndsigner plugin pre-installed.
+            org.opencontainers.image.vendor=Hashicorp (Vault), Bottlepay (lndsigner)
+            org.opencontainers.image.source=https://github.com/bottlepay/lndsigner
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.licenses=(MPL-2.0 AND MIT)
+            org.opencontainers.image.base.name=docker.io/library/vault:${{ matrix.vault_version }}
+
+      - name: Build the Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: Dockerfile.vault
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VAULT_VER=${{ matrix.vault_version }}
+            VAULT_SIGNER_PLUGIN_VER=${{ github.ref_name }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+
+  # This job builds the lndsigner server image
+  build-docker-lndsigner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          target: release-builder
+          platforms: linux/amd64,linux/arm64
+
+      - name: "Debian: Extract metadata (tags, labels) for Docker"
+        id: debian_meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=sha
+          flavor: |
+            latest=auto
+
+      - name: "Debian: Push Docker image"
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.debian_meta.outputs.tags }}
+          labels: ${{ steps.debian_meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          target: debian
+
+      - name: "Alpine: Extract metadata (tags, labels) for Docker"
+        id: alpine_meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=sha
+          flavor: |
+            suffix=-alpine
+
+      - name: "Alpine: Push Docker image"
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.alpine_meta.outputs.tags }}
+          labels: ${{ steps.alpine_meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          target: alpine
