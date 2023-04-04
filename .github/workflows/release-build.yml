@@ -8,7 +8,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  VAULT_IMAGE_NAME: bottlepay/vault-plugin-lndsigner
+  VAULT_IMAGE_NAME: nydig/vault-plugin-lndsigner
   GO_VERSION: 1.19.5
 
 jobs:
@@ -48,9 +48,9 @@ jobs:
         run: shasum -a 256 "vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}" | cut -d " " -f1 > "vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}.SHA256SUM"
 
       - name: Upload plugin assets to release
-        uses: softprops/action-gh-release@v1
+        uses: ncipollo/release-action@v1
         with:
-          files: |
+          artifacts: |
             vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}
             vault-plugin-lndsigner-${{ matrix.os }}-${{ matrix.arch }}.SHA256SUM
 
@@ -67,12 +67,13 @@ jobs:
             ### vault-plugin-lndsigner
             Pre-built extensions of the latest [base Vault images](https://hub.docker.com/_/vault) with `vault-plugin-lndsigner` pre-installed are available here:
 
-            [${{ env.REGISTRY }}/${{ env.VAULT_IMAGE_NAME }}](https://github.com/bottlepay/lndsigner/pkgs/container/vault-plugin-lndsigner)
+            [${{ env.REGISTRY }}/${{ env.VAULT_IMAGE_NAME }}](https://github.com/nydig/lndsigner/pkgs/container/vault-plugin-lndsigner)
 
             Note that the images within this package are provided for testing purposes only. Running a Vault image from an untrusted source in production is not recommended.
 
-          generate_release_notes: true
+          generateReleaseNotes: true
           prerelease: true
+          allowUpdates: true
 
   # This job extends the base Vault docker image by pre-installing the lndsigner plugin created
   # by the build-vault-plugin job
@@ -114,8 +115,8 @@ jobs:
           labels: |
             org.opencontainers.image.title=Vault (with lndsigner)
             org.opencontainers.image.description=The base Hashicorp Vault image (library/vault), with the lndsigner plugin pre-installed.
-            org.opencontainers.image.vendor=Hashicorp (Vault), Bottlepay (lndsigner)
-            org.opencontainers.image.source=https://github.com/bottlepay/lndsigner
+            org.opencontainers.image.vendor=Hashicorp (Vault), NYDIG (lndsigner)
+            org.opencontainers.image.source=https://github.com/nydig/lndsigner
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.licenses=(MPL-2.0 AND MIT)
             org.opencontainers.image.base.name=docker.io/library/vault:${{ matrix.vault_version }}
