@@ -9,7 +9,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   VAULT_IMAGE_NAME: nydig/vault-plugin-lndsigner
-  GO_VERSION: 1.19.5
+  GO_VERSION: 1.19.7
 
 jobs:
   # This job fetches the latest minor revision for each currently supported vault version.
