@@ -1,4 +1,4 @@
-ARG gover=1.19.7
+ARG gover=1.20.3
 
 FROM golang:$gover
 

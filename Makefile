@@ -17,7 +17,7 @@ ifeq ($(CPLATFORM), arm64)
 	CPLATFORM := aarch64
 endif 
 
-GOVER         := 1.19.7
+GOVER         := 1.20.3
 LND           := v0.16.0-beta
 BITCOIND      := 24.0.1
 VAULT         := 1.12.2
