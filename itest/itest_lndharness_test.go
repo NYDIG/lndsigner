@@ -198,7 +198,6 @@ func (l *lndHarness) Close() {
 	l.tctx.t.Helper()
 
 	_ = l.Lncli("stop")
-	_ = l.lndSignerCmd.Process.Signal(os.Interrupt)
 
 	l.cancel()
 }
