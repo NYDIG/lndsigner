@@ -2,11 +2,11 @@ module github.com/nydig/lndsigner
 
 require (
 	github.com/Yawning/aez v0.0.0-20211027044916-e49e68abd344
-	github.com/btcsuite/btcd v0.23.1
+	github.com/btcsuite/btcd v0.24.0
 	github.com/btcsuite/btcd/btcec/v2 v2.2.1
-	github.com/btcsuite/btcd/btcutil v1.1.2
+	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 	github.com/hashicorp/go-hclog v1.3.1
 	github.com/hashicorp/vault/api v1.8.0
