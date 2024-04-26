@@ -361,7 +361,7 @@ func (b *backend) deriveAndSign(ctx context.Context, req *logical.Request,
 
 	if signMethod == "schnorr" {
 		ecPrivKey = txscript.TweakTaprootPrivKey(
-			ecPrivKey,
+			*ecPrivKey,
 			tapTweakBytes,
 		)
 	}
